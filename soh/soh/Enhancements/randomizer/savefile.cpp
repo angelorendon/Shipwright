@@ -284,8 +284,9 @@ void SetStartingItems() {
         gSaveContext.isMagicAcquired = true;
         gSaveContext.isDoubleMagicAcquired = startMagic >= 2;
         gSaveContext.magicLevel = startMagic;
-        gSaveContext.magicCapacity = startMagic * MAGIC_NORMAL_METER;
-        gSaveContext.magic = gSaveContext.magicCapacity;
+        auto magicCapacity = static_cast<decltype(gSaveContext.magicCapacity)>(startMagic * MAGIC_NORMAL_METER);
+        gSaveContext.magicCapacity = magicCapacity;
+        gSaveContext.magic = magicCapacity;
     }
 
     uint8_t startBombchu = Randomizer_GetSettingValue(RSK_STARTING_BOMBCHU_BAG);
@@ -302,184 +303,51 @@ void SetStartingItems() {
         }
     }
 
-    // Big poe bottles first: Item_Give for a bottled content fills the first empty-bottle
-    // slot, so each poe is paired with the bottle given right before it. Ruto's Letter fills
-    // an empty inventory slot on its own. The remaining plain empty bottles follow.
-    uint8_t emptyBottles = 0;
-    for (RandomizerSettingKey bottleKey :
-         { RSK_STARTING_BOTTLE_1, RSK_STARTING_BOTTLE_2, RSK_STARTING_BOTTLE_3, RSK_STARTING_BOTTLE_4 }) {
-        uint8_t bottle = Randomizer_GetSettingValue(bottleKey);
-        switch (bottle) {
-            case RO_STARTING_BOTTLE_OFF:
-                break;
-            case RO_STARTING_BOTTLE_EMPTY:
-                emptyBottles++;
-                break;
-            case RO_STARTING_BOTTLE_BIG_POE:
-                Item_Give(NULL, ITEM_BOTTLE);
-                Item_Give(NULL, ITEM_BIG_POE);
-                break;
-            case RO_STARTING_BOTTLE_RUTOS_LETTER:
-                Item_Give(NULL, ITEM_LETTER_RUTO);
-                break;
-            default:
-                SPDLOG_ERROR("[SetStartingItems] Unhandled value for bottleKey {}: {}", (int)bottleKey, bottle);
-                assert(false);
-                break;
-        }
-    }
-    for (uint8_t i = 0; i < emptyBottles; i++) {
-        Item_Give(NULL, ITEM_BOTTLE);
+    if (Randomizer_GetSettingValue(RSK_STARTING_CHILD_TRADE) > RO_CHILD_TRADE_NONE &&
+        Randomizer_GetSettingValue(RSK_STARTING_CHILD_TRADE) < RO_CHILD_TRADE_MAX) {
+        INV_CONTENT(ITEM_WEIRD_EGG) = Randomizer_GetSettingValue(RSK_STARTING_CHILD_TRADE);
     }
 
-    if (Randomizer_GetSettingValue(RSK_STARTING_WEIRD_EGG) && Randomizer_GetSettingValue(RSK_SHUFFLE_WEIRD_EGG)) {
-        Item_Give(NULL, ITEM_WEIRD_EGG);
-    }
-    if (Randomizer_GetSettingValue(RSK_STARTING_CLAIM_CHECK)) {
-        Item_Give(NULL, ITEM_CLAIM_CHECK);
-    }
-    if (Randomizer_GetSettingValue(RSK_STARTING_GERUDO_CARD)) {
-        Item_Give(NULL, ITEM_GERUDO_CARD);
+    if (Randomizer_GetSettingValue(RSK_STARTING_ADULT_TRADE) > RO_ADULT_TRADE_NONE &&
+        Randomizer_GetSettingValue(RSK_STARTING_ADULT_TRADE) < RO_ADULT_TRADE_MAX) {
+        INV_CONTENT(ITEM_POCKET_EGG) = Randomizer_GetSettingValue(RSK_STARTING_ADULT_TRADE);
     }
 
-    if (Randomizer_GetSettingValue(RSK_STARTING_BUNNY_HOOD)) {
-        Flags_SetRandomizerInf(RAND_INF_CHILD_TRADES_HAS_MASK_BUNNY);
-        if (INV_CONTENT(ITEM_TRADE_CHILD) == ITEM_NONE) {
-            INV_CONTENT(ITEM_TRADE_CHILD) = ITEM_MASK_BUNNY;
+    if (Randomizer_GetSettingValue(RSK_STARTING_RUTO_BOTTLE)) {
+        Item_Give(NULL, ITEM_BOTTLE_RUTO_LETTER);
+        gSaveContext.itemGetInf[0] |= 0x80;
+    }
+
+    if (Randomizer_GetSettingValue(RSK_STARTING_CONSUMABLES)) {
+        AMMO(ITEM_STICK) = CUR_CAPACITY(UPG_STICKS);
+        AMMO(ITEM_NUT) = CUR_CAPACITY(UPG_NUTS);
+        AMMO(ITEM_BOMB) = CUR_CAPACITY(UPG_BOMB_BAG);
+        AMMO(ITEM_BOW) = CUR_CAPACITY(UPG_QUIVER);
+        AMMO(ITEM_SLINGSHOT) = CUR_CAPACITY(UPG_BULLET_BAG);
+        AMMO(ITEM_BOMBCHU) = Randomizer_GetSettingValue(RSK_BOMBCHU_BAG) == RO_BOMBCHU_BAG_NONE ? 0 : 20;
+        AMMO(ITEM_BEAN) = 10;
+        gSaveContext.magic = gSaveContext.isMagicAcquired ? gSaveContext.magicCapacity : 0;
+        for (int i = ITEM_BOTTLE; i < ITEM_WEIRD_EGG; i++) {
+            if (INV_CONTENT(i) == ITEM_NONE) {
+                INV_CONTENT(i) = ITEM_BOTTLE;
+            }
         }
     }
 
-    // Giant's Knife and Biggoron's Sword share an item slot, bgsFlag marks unbreakable
-    switch (Randomizer_GetSettingValue(RSK_STARTING_BIGGORON_SWORD)) {
-        case RO_STARTING_BGS_BIGGORON_SWORD:
-            gSaveContext.bgsFlag = true;
-            [[fallthrough]];
-        case RO_STARTING_BGS_GIANTS_KNIFE:
-            Item_Give(NULL, ITEM_SWORD_BGS);
-            break;
-    }
-
-    if (Randomizer_GetSettingValue(RSK_FULL_WALLETS)) {
-        GiveLinkRupees(9001);
-    }
-
-    if (Randomizer_GetSettingValue(RSK_SHUFFLE_MAPANDCOMPASS) == RO_DUNGEON_ITEM_LOC_STARTWITH) {
-        uint32_t mapBitMask = 1 << 1;
-        uint32_t compassBitMask = 1 << 2;
-        uint32_t startingDungeonItemsBitMask = mapBitMask | compassBitMask;
-        for (int scene = SCENE_DEKU_TREE; scene <= SCENE_ICE_CAVERN; scene++) {
-            gSaveContext.inventory.dungeonItems[scene] |= startingDungeonItemsBitMask;
+    uint8_t startMapCompass = Randomizer_GetSettingValue(RSK_STARTING_MAP_COMPASS);
+    if (startMapCompass > 0) {
+        bool mcRemoved = Randomizer_GetSettingValue(RSK_SHUFFLE_MAPANDCOMPASS) == RO_DUNGEON_ITEM_LOC_REMOVED;
+        for (int i = 0; i < RSK_STARTING_MAP_COMPASS; i++) {
+            if (mcRemoved) {
+                gSaveContext.inventory.dungeonItems[i] |= 0x3;
+            } else if (startMapCompass == RO_DUNGEON_ITEM_LOC_START_WITH) {
+                gSaveContext.inventory.dungeonItems[i] |= 0x3;
+            }
         }
-    }
-
-    if (Randomizer_GetSettingValue(RSK_KEYSANITY) == RO_DUNGEON_ITEM_LOC_STARTWITH) {
-        gSaveContext.inventory.dungeonKeys[SCENE_FOREST_TEMPLE] = FOREST_TEMPLE_SMALL_KEY_MAX;            // Forest
-        gSaveContext.ship.stats.dungeonKeys[SCENE_FOREST_TEMPLE] = FOREST_TEMPLE_SMALL_KEY_MAX;           // Forest
-        gSaveContext.inventory.dungeonKeys[SCENE_FIRE_TEMPLE] = FIRE_TEMPLE_SMALL_KEY_MAX;                // Fire
-        gSaveContext.ship.stats.dungeonKeys[SCENE_FIRE_TEMPLE] = FIRE_TEMPLE_SMALL_KEY_MAX;               // Fire
-        gSaveContext.inventory.dungeonKeys[SCENE_WATER_TEMPLE] = WATER_TEMPLE_SMALL_KEY_MAX;              // Water
-        gSaveContext.ship.stats.dungeonKeys[SCENE_WATER_TEMPLE] = WATER_TEMPLE_SMALL_KEY_MAX;             // Water
-        gSaveContext.inventory.dungeonKeys[SCENE_SPIRIT_TEMPLE] = SPIRIT_TEMPLE_SMALL_KEY_MAX;            // Spirit
-        gSaveContext.ship.stats.dungeonKeys[SCENE_SPIRIT_TEMPLE] = SPIRIT_TEMPLE_SMALL_KEY_MAX;           // Spirit
-        gSaveContext.inventory.dungeonKeys[SCENE_SHADOW_TEMPLE] = SHADOW_TEMPLE_SMALL_KEY_MAX;            // Shadow
-        gSaveContext.ship.stats.dungeonKeys[SCENE_SHADOW_TEMPLE] = SHADOW_TEMPLE_SMALL_KEY_MAX;           // Shadow
-        gSaveContext.inventory.dungeonKeys[SCENE_BOTTOM_OF_THE_WELL] = BOTTOM_OF_THE_WELL_SMALL_KEY_MAX;  // BotW
-        gSaveContext.ship.stats.dungeonKeys[SCENE_BOTTOM_OF_THE_WELL] = BOTTOM_OF_THE_WELL_SMALL_KEY_MAX; // BotW
-        gSaveContext.inventory.dungeonKeys[SCENE_GERUDO_TRAINING_GROUND] = GERUDO_TRAINING_GROUND_SMALL_KEY_MAX;  // GTG
-        gSaveContext.ship.stats.dungeonKeys[SCENE_GERUDO_TRAINING_GROUND] = GERUDO_TRAINING_GROUND_SMALL_KEY_MAX; // GTG
-        gSaveContext.inventory.dungeonKeys[SCENE_INSIDE_GANONS_CASTLE] = GANONS_CASTLE_SMALL_KEY_MAX;  // Ganon
-        gSaveContext.ship.stats.dungeonKeys[SCENE_INSIDE_GANONS_CASTLE] = GANONS_CASTLE_SMALL_KEY_MAX; // Ganon
-    } else if (Randomizer_GetSettingValue(RSK_KEYSANITY) == RO_DUNGEON_ITEM_LOC_VANILLA) {
-        // Logic cannot handle vanilla key layout in some dungeons
-        // this is because vanilla expects the dungeon major item to be
-        // locked behind the keys, which is not always true in rando.
-        // We can resolve this by starting with some extra keys.
-        if (ResourceMgr_IsSceneMasterQuest(SCENE_SPIRIT_TEMPLE)) {
-            // MQ Spirit needs 3 keys.
-            gSaveContext.inventory.dungeonKeys[SCENE_SPIRIT_TEMPLE] = 3;
-            gSaveContext.ship.stats.dungeonKeys[SCENE_SPIRIT_TEMPLE] = 3;
-        }
-    }
-
-    if (Randomizer_GetSettingValue(RSK_BOSS_KEYSANITY) == RO_DUNGEON_ITEM_LOC_STARTWITH) {
-        gSaveContext.inventory.dungeonItems[SCENE_FOREST_TEMPLE] |= 1; // Forest
-        gSaveContext.inventory.dungeonItems[SCENE_FIRE_TEMPLE] |= 1;   // Fire
-        gSaveContext.inventory.dungeonItems[SCENE_WATER_TEMPLE] |= 1;  // Water
-        gSaveContext.inventory.dungeonItems[SCENE_SPIRIT_TEMPLE] |= 1; // Spirit
-        gSaveContext.inventory.dungeonItems[SCENE_SHADOW_TEMPLE] |= 1; // Shadow
-    }
-
-    if (Randomizer_GetSettingValue(RSK_GANONS_BOSS_KEY) == RO_GANON_BOSS_KEY_STARTWITH) {
-        gSaveContext.inventory.dungeonItems[SCENE_GANONS_TOWER] |= 1;
     }
 }
 
-extern "C" void Randomizer_InitSaveFile() {
-    auto ctx = Rando::Context::GetInstance();
-    ctx->GetLogic()->SetSaveContext(&gSaveContext);
-
-    // Starts pending ice traps out at 0 before potentially incrementing them down the line.
-    gSaveContext.ship.pendingIceTrapCount = 0;
-
-    // Reset triforce pieces collected.
-    gSaveContext.ship.quest.data.randomizer.triforcePiecesCollected = 0;
-
-    // Reset Bombchu Bag Upgrade
-    gSaveContext.ship.quest.data.randomizer.bombchuUpgradeLevel = 0;
-
-    SetStartingItems();
-
-    // Set Cutscene flags and texts to skip them.
-    Flags_SetEventChkInf(EVENTCHKINF_FIRST_SPOKE_TO_MIDO);
-    Flags_SetInfTable(INFTABLE_SPOKE_TO_KAEPORA_IN_LAKE_HYLIA);
-    Flags_SetEventChkInf(EVENTCHKINF_SHEIK_SPAWNED_AT_MASTER_SWORD_PEDESTAL);
-    Flags_SetEventChkInf(EVENTCHKINF_RENTED_HORSE_FROM_INGO);
-    Flags_SetInfTable(INFTABLE_SPOKE_TO_POE_COLLECTOR_IN_RUINED_MARKET);
-    Flags_SetEventChkInf(EVENTCHKINF_WATCHED_GANONS_CASTLE_COLLAPSE_CAUGHT_BY_GERUDO);
-
-    if (Randomizer_GetSettingValue(RSK_FOREST) == RO_CLOSED_FOREST_OFF) {
-        Flags_SetEventChkInf(EVENTCHKINF_SHOWED_MIDO_SWORD_SHIELD);
-        Flags_SetEventChkInf(EVENTCHKINF_SPOKE_TO_MIDO_AFTER_DEKU_TREES_DEATH);
-    }
-
-    // Go away Ruto (Water Temple first cutscene).
-    gSaveContext.sceneFlags[SCENE_WATER_TEMPLE].swch |= (1 << 0x10);
-
-    if (Randomizer_GetSettingValue(RSK_STARTING_BEANS)) {
-        INV_CONTENT(ITEM_BEAN) = ITEM_BEAN;
-        if (Randomizer_GetSettingValue(RSK_SHUFFLE_MERCHANTS) != RO_SHUFFLE_MERCHANTS_BEANS_ONLY &&
-            Randomizer_GetSettingValue(RSK_SHUFFLE_MERCHANTS) != RO_SHUFFLE_MERCHANTS_ALL) {
-            BEANS_BOUGHT = 10;
-        }
-        if (Randomizer_GetSettingValue(RSK_SKIP_PLANTING_BEANS)) {
-            AMMO(ITEM_BEAN) = 0;
-            gSaveContext.sceneFlags[SCENE_DEATH_MOUNTAIN_CRATER].swch |= (1 << 3);
-            gSaveContext.sceneFlags[SCENE_DEATH_MOUNTAIN_TRAIL].swch |= (1 << 6);
-            gSaveContext.sceneFlags[SCENE_DESERT_COLOSSUS].swch |= (1 << 24);
-            gSaveContext.sceneFlags[SCENE_GERUDO_VALLEY].swch |= (1 << 3);
-            gSaveContext.sceneFlags[SCENE_GRAVEYARD].swch |= (1 << 3);
-            gSaveContext.sceneFlags[SCENE_KOKIRI_FOREST].swch |= (1 << 9);
-            gSaveContext.sceneFlags[SCENE_LAKE_HYLIA].swch |= (1 << 1);
-            gSaveContext.sceneFlags[SCENE_LOST_WOODS].swch |= (1 << 4) | (1 << 18);
-            gSaveContext.sceneFlags[SCENE_ZORAS_RIVER].swch |= (1 << 3);
-        } else {
-            AMMO(ITEM_BEAN) = 10;
-        }
-    }
-
-    if (Randomizer_GetSettingValue(RSK_SHUFFLE_BEAN_SOULS) == RO_GENERIC_OFF) {
-        Flags_SetRandomizerInf(RAND_INF_DEATH_MOUNTAIN_CRATER_BEAN_SOUL);
-        Flags_SetRandomizerInf(RAND_INF_DEATH_MOUNTAIN_TRAIL_BEAN_SOUL);
-        Flags_SetRandomizerInf(RAND_INF_DESERT_COLOSSUS_BEAN_SOUL);
-        Flags_SetRandomizerInf(RAND_INF_GERUDO_VALLEY_BEAN_SOUL);
-        Flags_SetRandomizerInf(RAND_INF_GRAVEYARD_BEAN_SOUL);
-        Flags_SetRandomizerInf(RAND_INF_KOKIRI_FOREST_BEAN_SOUL);
-        Flags_SetRandomizerInf(RAND_INF_LAKE_HYLIA_BEAN_SOUL);
-        Flags_SetRandomizerInf(RAND_INF_LOST_WOODS_BRIDGE_BEAN_SOUL);
-        Flags_SetRandomizerInf(RAND_INF_LOST_WOODS_BEAN_SOUL);
-        Flags_SetRandomizerInf(RAND_INF_ZORAS_RIVER_BEAN_SOUL);
-    }
-
+void SetStartingOtr() {
     if (Randomizer_GetSettingValue(RSK_SHUFFLE_OCARINA_BUTTONS) == RO_GENERIC_OFF) {
         Flags_SetRandomizerInf(RAND_INF_HAS_OCARINA_A);
         Flags_SetRandomizerInf(RAND_INF_HAS_OCARINA_C_LEFT);
@@ -508,7 +376,6 @@ extern "C" void Randomizer_InitSaveFile() {
         Flags_SetEventChkInf(EVENTCHKINF_SPOKE_TO_NABOORU_IN_SPIRIT_TEMPLE);
         Flags_SetRandomizerInf(RAND_INF_CAN_SPEAK_DEKU);
         Flags_SetRandomizerInf(RAND_INF_CAN_SPEAK_GERUDO);
-        Flags_SetRandomizerInf(RAND_INF_CAN_SPEAK_GORON);
         Flags_SetRandomizerInf(RAND_INF_CAN_SPEAK_HYLIAN);
         Flags_SetRandomizerInf(RAND_INF_CAN_SPEAK_KOKIRI);
         Flags_SetRandomizerInf(RAND_INF_CAN_SPEAK_ZORA);
