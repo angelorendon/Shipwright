@@ -26,6 +26,7 @@ namespace {
 
 constexpr const char* kLaunchIntentFileName = "projectzelda64_launch_intent.json";
 constexpr const char* kSuppressNextPortalFileName = "projectzelda64_suppress_next_oot_portal.txt";
+constexpr const char* kOotSaveSnapshotFileName = "projectzelda64_oot_save_snapshot.bin";
 constexpr s32 kHappyMaskShopEntrance = 0x0530; // ENTR_HAPPY_MASK_SHOP_0
 
 bool gProjectZelda64IntentConsumed = false;
@@ -41,6 +42,40 @@ std::string ReadWholeFile(const std::filesystem::path& path) {
 
 bool Contains(const std::string& text, const char* value) {
     return text.find(value) != std::string::npos;
+}
+
+bool TryRestoreOotSaveSnapshotFromPath(const std::filesystem::path& path) {
+    std::error_code existsError;
+    if (!std::filesystem::exists(path, existsError) || existsError) {
+        return false;
+    }
+
+    std::ifstream snapshotFile(path, std::ios::binary);
+    if (!snapshotFile.is_open()) {
+        return false;
+    }
+
+    SaveContext snapshot = {};
+    snapshotFile.read(reinterpret_cast<char*>(&snapshot), sizeof(snapshot));
+
+    if (snapshotFile.gcount() != sizeof(snapshot)) {
+        std::cout << "[ProjectZelda64] ignored incomplete OoT save snapshot: " << path.string() << '\n';
+        return false;
+    }
+
+    gSaveContext = snapshot;
+    std::cout << "[ProjectZelda64] restored OoT save snapshot: " << path.string() << '\n';
+    return true;
+}
+
+bool TryRestoreOotSaveSnapshot() {
+    const auto currentPath = std::filesystem::current_path();
+
+    return TryRestoreOotSaveSnapshotFromPath(currentPath / kOotSaveSnapshotFileName) ||
+           TryRestoreOotSaveSnapshotFromPath(currentPath / "x64" / "Release" / kOotSaveSnapshotFileName) ||
+           TryRestoreOotSaveSnapshotFromPath(currentPath / "build" / "x64" / "Release" / kOotSaveSnapshotFileName) ||
+           TryRestoreOotSaveSnapshotFromPath(currentPath / "extern" / "Shipwright" / "x64" / "Release" / kOotSaveSnapshotFileName) ||
+           TryRestoreOotSaveSnapshotFromPath(currentPath / "extern" / "Shipwright" / "build" / "x64" / "Release" / kOotSaveSnapshotFileName);
 }
 
 void WriteSuppressNextPortalMarker() {
@@ -115,6 +150,7 @@ void PrepareHappyMaskShopSaveState() {
     gSaveContext.gameMode = GAMEMODE_NORMAL;
     gSaveContext.fileNum = 0xFE;
     Sram_InitDebugSave();
+    TryRestoreOotSaveSnapshot();
 
     // ProjectZelda64: this launch intent came from MM returning to OoT.
     // Suppress the Happy Mask Shop portal once so OoT does not immediately route back to MM.
