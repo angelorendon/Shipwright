@@ -1,4 +1,4 @@
-#include "z_en_ossan.h"
+﻿#include "z_en_ossan.h"
 #include "vt.h"
 #include "objects/gameplay_keep/gameplay_keep.h"
 #include "objects/object_ossan/object_ossan.h"
@@ -19,7 +19,12 @@
 #include <assert.h>
 #include "soh/OTRGlobals.h"
 
+void ProjectZelda64_WriteHappyMaskSalesmanPortalEvent(void);
+
 #define FLAGS (ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_FRIENDLY | ACTOR_FLAG_UPDATE_CULLING_DISABLED)
+
+#define TEXT_PROJECTZELDA64_DEVICE_PROMPT 0x71F0
+#define TEXT_PROJECTZELDA64_DEVICE_DECLINE 0x71F1
 
 void EnOssan_Init(Actor* thisx, PlayState* play);
 void EnOssan_Destroy(Actor* thisx, PlayState* play);
@@ -148,17 +153,17 @@ static s16 sItemShelfRot[] = { 0xEAAC, 0xEAAC, 0xEAAC, 0xEAAC, 0x1554, 0x1554, 0
 static s16 D_80AC8904[] = { 0x001E, 0x001F, 0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025 };
 
 static char* sShopkeeperPrintName[] = {
-    "コキリの店  ", // "Kokiri Shop"
-    "薬屋        ", // "Potion Shop"
-    "夜の店      ", // "Night Shop"
-    "路地裏の店  ", // "Back Alley Shop"
-    "盾の店      ", // "Shield Shop"
-    "大人の店    ", // "Adult Shop"
-    "タロンの店  ", // "Talon Shop"
-    "ゾーラの店  ", // "Zora Shop"
-    "ゴロン夜の店", // "Goron Night Shop"
-    "インゴーの店", // "Ingo Store"
-    "お面屋      ", // "Mask Shop"
+    "ã‚³ã‚­ãƒªã®åº—  ", // "Kokiri Shop"
+    "è–¬å±‹        ", // "Potion Shop"
+    "å¤œã®åº—      ", // "Night Shop"
+    "è·¯åœ°è£ã®åº—  ", // "Back Alley Shop"
+    "ç›¾ã®åº—      ", // "Shield Shop"
+    "å¤§äººã®åº—    ", // "Adult Shop"
+    "ã‚¿ãƒ­ãƒ³ã®åº—  ", // "Talon Shop"
+    "ã‚¾ãƒ¼ãƒ©ã®åº—  ", // "Zora Shop"
+    "ã‚´ãƒ­ãƒ³å¤œã®åº—", // "Goron Night Shop"
+    "ã‚¤ãƒ³ã‚´ãƒ¼ã®åº—", // "Ingo Store"
+    "ãŠé¢å±‹      ", // "Mask Shop"
 };
 
 typedef struct {
@@ -599,20 +604,14 @@ void EnOssan_Init(Actor* thisx, PlayState* play) {
     if (this->actor.params > OSSAN_TYPE_MASK && this->actor.params < OSSAN_TYPE_KOKIRI) {
         Actor_Kill(&this->actor);
         osSyncPrintf(VT_COL(RED, WHITE));
-        osSyncPrintf("引数がおかしいよ(arg_data=%d)！！\n", this->actor.params);
+        osSyncPrintf("å¼•æ•°ãŒãŠã‹ã—ã„ã‚ˆ(arg_data=%d)ï¼ï¼\n", this->actor.params);
         osSyncPrintf(VT_RST);
         assert(this->actor.params > OSSAN_TYPE_MASK && this->actor.params < OSSAN_TYPE_KOKIRI);
         return;
     }
 
-    // If you haven't given Zelda's Letter to the Kakariko Guard
-    // or are rando'd and haven't gotten gotten the letter from zelda yet
-    if (this->actor.params == OSSAN_TYPE_MASK &&
-        (!Flags_GetInfTable(INFTABLE_SHOWED_ZELDAS_LETTER_TO_GATE_GUARD) ||
-         (IS_RANDO && !Flags_GetEventChkInf(EVENTCHKINF_OBTAINED_ZELDAS_LETTER)))) {
-        Actor_Kill(&this->actor);
-        return;
-    }
+    // ProjectZelda64: always keep the Happy Mask Salesman present so the
+    // cross-game portal dialog is available regardless of Zelda's Letter progress.
 
     if (this->actor.params == OSSAN_TYPE_KAKARIKO_POTION && (LINK_AGE_IN_YEARS == YEARS_CHILD)) {
         Actor_Kill(&this->actor);
@@ -633,7 +632,7 @@ void EnOssan_Init(Actor* thisx, PlayState* play) {
     if (this->objBankIndex1 < 0) {
         Actor_Kill(&this->actor);
         osSyncPrintf(VT_COL(RED, WHITE));
-        osSyncPrintf("バンクが無いよ！！(%s)\n", sShopkeeperPrintName[this->actor.params]);
+        osSyncPrintf("ãƒãƒ³ã‚¯ãŒç„¡ã„ã‚ˆï¼ï¼(%s)\n", sShopkeeperPrintName[this->actor.params]);
         osSyncPrintf(VT_RST);
         assert(this->objBankIndex1 < 0);
         return;
@@ -642,7 +641,7 @@ void EnOssan_Init(Actor* thisx, PlayState* play) {
     if (EnOssan_TryGetObjBankIndexes(this, play, objectIds) == 0) {
         Actor_Kill(&this->actor);
         osSyncPrintf(VT_COL(RED, WHITE));
-        osSyncPrintf("予備バンクが無いよ！！(%s)\n", sShopkeeperPrintName[this->actor.params]);
+        osSyncPrintf("äºˆå‚™ãƒãƒ³ã‚¯ãŒç„¡ã„ã‚ˆï¼ï¼(%s)\n", sShopkeeperPrintName[this->actor.params]);
         osSyncPrintf(VT_RST);
         assert(EnOssan_TryGetObjBankIndexes(this, play, objectIds) == 0);
         return;
@@ -675,7 +674,7 @@ void EnOssan_EndInteraction(PlayState* play, EnOssan* this) {
     Player* player = GET_PLAYER(play);
 
     // "End of conversation!"
-    osSyncPrintf(VT_FGCOL(YELLOW) "%s[%d]:★★★ 会話終了！！ ★★★" VT_RST "\n", __FILE__, __LINE__);
+    osSyncPrintf(VT_FGCOL(YELLOW) "%s[%d]:â˜…â˜…â˜… ä¼šè©±çµ‚äº†ï¼ï¼ â˜…â˜…â˜…" VT_RST "\n", __FILE__, __LINE__);
     YREG(31) = 0;
     Actor_ProcessTalkRequest(&this->actor, play);
     play->msgCtx.msgMode = MSGMODE_TEXT_CLOSING;
@@ -746,7 +745,13 @@ void EnOssan_StartShopping(PlayState* play, EnOssan* this) {
 
 void EnOssan_ChooseTalkToOwner(PlayState* play, EnOssan* this) {
     this->stateFlag = OSSAN_STATE_TALKING_TO_SHOPKEEPER;
-    sShopkeeperTalkOwner[this->actor.params](play);
+
+    if (this->actor.params == OSSAN_TYPE_MASK) {
+        Message_ContinueTextbox(play, TEXT_PROJECTZELDA64_DEVICE_PROMPT);
+    } else {
+        sShopkeeperTalkOwner[this->actor.params](play);
+    }
+
     Interface_SetDoAction(play, DO_ACTION_DECIDE);
     this->stickLeftPrompt.isEnabled = false;
     this->stickRightPrompt.isEnabled = false;
@@ -763,7 +768,7 @@ void EnOssan_State_Idle(EnOssan* this, PlayState* play, Player* player) {
 
     if (Actor_ProcessTalkRequest(&this->actor, play)) {
         // "Start conversation!!"
-        osSyncPrintf(VT_FGCOL(YELLOW) "★★★ 会話開始！！ ★★★" VT_RST "\n");
+        osSyncPrintf(VT_FGCOL(YELLOW) "â˜…â˜…â˜… ä¼šè©±é–‹å§‹ï¼ï¼ â˜…â˜…â˜…" VT_RST "\n");
         player->stateFlags2 |= PLAYER_STATE2_DISABLE_DRAW;
         Play_SetShopBrowsingViewpoint(play);
         EnOssan_SetStateStartShopping(play, this, false);
@@ -960,7 +965,7 @@ void EnOssan_State_StartConversation(EnOssan* this, PlayState* play, Player* pla
 
         if (!EnOssan_TestEndInteraction(this, play, &play->state.input[0])) {
             // "Shop around by moving the stick left and right"
-            osSyncPrintf("「スティック左右で品物みてくれ！」\n");
+            osSyncPrintf("ã€Œã‚¹ãƒ†ã‚£ãƒƒã‚¯å·¦å³ã§å“ç‰©ã¿ã¦ãã‚Œï¼ã€\n");
             EnOssan_StartShopping(play, this);
         }
     }
@@ -1026,7 +1031,30 @@ void EnOssan_State_FacingShopkeeper(EnOssan* this, PlayState* play, Player* play
 }
 
 void EnOssan_State_TalkingToShopkeeper(EnOssan* this, PlayState* play, Player* player) {
-    if ((Message_GetState(&play->msgCtx) == TEXT_STATE_EVENT) && Message_ShouldAdvance(play)) {
+    u8 dialogState = Message_GetState(&play->msgCtx);
+
+    if (this->actor.params == OSSAN_TYPE_MASK && play->msgCtx.textId == TEXT_PROJECTZELDA64_DEVICE_PROMPT &&
+        dialogState == TEXT_STATE_CHOICE && Message_ShouldAdvance(play)) {
+        if (play->msgCtx.choiceIndex == 0) {
+            ProjectZelda64_WriteHappyMaskSalesmanPortalEvent();
+            Message_CloseTextbox(play);
+            EnOssan_EndInteraction(play, this);
+        } else {
+            Message_ContinueTextbox(play, TEXT_PROJECTZELDA64_DEVICE_DECLINE);
+            Interface_SetDoAction(play, DO_ACTION_NEXT);
+        }
+        return;
+    }
+
+    if (this->actor.params == OSSAN_TYPE_MASK && play->msgCtx.textId == TEXT_PROJECTZELDA64_DEVICE_DECLINE) {
+        if (Message_ShouldAdvance(play)) {
+            Message_CloseTextbox(play);
+            EnOssan_EndInteraction(play, this);
+        }
+        return;
+    }
+
+    if ((dialogState == TEXT_STATE_EVENT) && Message_ShouldAdvance(play)) {
         EnOssan_StartShopping(play, this);
     }
 }
@@ -1229,7 +1257,7 @@ void EnOssan_State_BrowseLeftShelf(EnOssan* this, PlayState* play, Player* playe
     bool dpad = CVarGetInteger(CVAR_SETTING("DpadInText"), 0);
 
     if (!EnOssan_ReturnItemToShelf(this)) {
-        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ズーム中！！" VT_RST "\n", __FILE__, __LINE__);
+        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ã‚ºãƒ¼ãƒ ä¸­ï¼ï¼" VT_RST "\n", __FILE__, __LINE__);
         this->delayTimer = 3;
         return;
     }
@@ -1302,7 +1330,7 @@ void EnOssan_State_BrowseRightShelf(EnOssan* this, PlayState* play, Player* play
 
     prevIndex = this->cursorIndex;
     if (!EnOssan_ReturnItemToShelf(this)) {
-        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ズーム中！！" VT_RST "\n", __FILE__, __LINE__);
+        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ã‚ºãƒ¼ãƒ ä¸­ï¼ï¼" VT_RST "\n", __FILE__, __LINE__);
         this->delayTimer = 3;
         return;
     }
@@ -1379,7 +1407,7 @@ void EnOssan_State_LookFromShelfToShopkeeper(EnOssan* this, PlayState* play, Pla
 
 void EnOssan_State_DisplayOnlyBombDialog(EnOssan* this, PlayState* play, Player* player) {
     if (!EnOssan_ReturnItemToShelf(this)) {
-        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ズーム中！！" VT_RST "\n", __FILE__, __LINE__);
+        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ã‚ºãƒ¼ãƒ ä¸­ï¼ï¼" VT_RST "\n", __FILE__, __LINE__);
         return;
     }
     Math_ApproachF(&this->cameraFaceAngle, 0.0f, 0.5f, 10.0f);
@@ -1396,7 +1424,7 @@ void EnOssan_State_DisplayOnlyBombDialog(EnOssan* this, PlayState* play, Player*
 void EnOssan_GiveItemWithFanfare(PlayState* play, EnOssan* this) {
     Player* player = GET_PLAYER(play);
 
-    osSyncPrintf("\n" VT_FGCOL(YELLOW) "初めて手にいれた！！" VT_RST "\n\n");
+    osSyncPrintf("\n" VT_FGCOL(YELLOW) "åˆã‚ã¦æ‰‹ã«ã„ã‚ŒãŸï¼ï¼" VT_RST "\n\n");
     Actor_OfferGetItem(&this->actor, play, this->shelfSlots[this->cursorIndex]->getItemId, 120.0f, 120.0f);
     play->msgCtx.msgMode = MSGMODE_TEXT_CLOSING;
     play->msgCtx.stateTimer = 4;
@@ -1406,7 +1434,7 @@ void EnOssan_GiveItemWithFanfare(PlayState* play, EnOssan* this) {
     this->drawCursor = 0;
     EnOssan_UpdateCameraDirection(this, play, 0.0f);
     this->stateFlag = OSSAN_STATE_GIVE_ITEM_FANFARE;
-    osSyncPrintf(VT_FGCOL(YELLOW) "持ち上げ開始！！" VT_RST "\n\n");
+    osSyncPrintf(VT_FGCOL(YELLOW) "æŒã¡ä¸Šã’é–‹å§‹ï¼ï¼" VT_RST "\n\n");
 }
 
 void EnOssan_SetStateCantGetItem(PlayState* play, EnOssan* this, u16 textId) {
@@ -1562,7 +1590,7 @@ void EnOssan_State_ItemSelected(EnOssan* this, PlayState* play2, Player* player)
     PlayState* play = play2; // Necessary for OKs
 
     if (!EnOssan_TakeItemOffShelf(this)) {
-        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ズーム中！！" VT_RST "\n", __FILE__, __LINE__);
+        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ã‚ºãƒ¼ãƒ ä¸­ï¼ï¼" VT_RST "\n", __FILE__, __LINE__);
         return;
     }
     if (Message_GetState(&play->msgCtx) == TEXT_STATE_CHOICE &&
@@ -1583,7 +1611,7 @@ void EnOssan_State_SelectMilkBottle(EnOssan* this, PlayState* play2, Player* pla
     PlayState* play = play2; // Need for OK
 
     if (!EnOssan_TakeItemOffShelf(this)) {
-        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ズーム中！！" VT_RST "\n", __FILE__, __LINE__);
+        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ã‚ºãƒ¼ãƒ ä¸­ï¼ï¼" VT_RST "\n", __FILE__, __LINE__);
         return;
     }
     if (Message_GetState(&play->msgCtx) == TEXT_STATE_CHOICE &&
@@ -1604,7 +1632,7 @@ void EnOssan_State_SelectWeirdEgg(EnOssan* this, PlayState* play2, Player* playe
     PlayState* play = play2; // Needed for OK
 
     if (!EnOssan_TakeItemOffShelf(this)) {
-        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ズーム中！！" VT_RST "\n", __FILE__, __LINE__);
+        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ã‚ºãƒ¼ãƒ ä¸­ï¼ï¼" VT_RST "\n", __FILE__, __LINE__);
         return;
     }
     if (Message_GetState(&play->msgCtx) == TEXT_STATE_CHOICE &&
@@ -1623,7 +1651,7 @@ void EnOssan_State_SelectWeirdEgg(EnOssan* this, PlayState* play2, Player* playe
 
 void EnOssan_State_SelectUnimplementedItem(EnOssan* this, PlayState* play, Player* player) {
     if (!EnOssan_TakeItemOffShelf(this)) {
-        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ズーム中！！" VT_RST "\n", __FILE__, __LINE__);
+        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ã‚ºãƒ¼ãƒ ä¸­ï¼ï¼" VT_RST "\n", __FILE__, __LINE__);
         return;
     }
     if (Message_GetState(&play->msgCtx) == TEXT_STATE_EVENT && Message_ShouldAdvance(play)) {
@@ -1634,10 +1662,10 @@ void EnOssan_State_SelectUnimplementedItem(EnOssan* this, PlayState* play, Playe
 
 void EnOssan_State_SelectBombs(EnOssan* this, PlayState* play, Player* player) {
     if (!EnOssan_TakeItemOffShelf(this)) {
-        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ズーム中！！" VT_RST "\n", __FILE__, __LINE__);
+        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ã‚ºãƒ¼ãƒ ä¸­ï¼ï¼" VT_RST "\n", __FILE__, __LINE__);
         return;
     }
-    osSyncPrintf("店主の依頼 ( %d )\n", Flags_GetInfTable(INFTABLE_FC));
+    osSyncPrintf("åº—ä¸»ã®ä¾é ¼ ( %d )\n", Flags_GetInfTable(INFTABLE_FC));
     if (this->actor.params != OSSAN_TYPE_GORON) {
         EnOssan_State_ItemSelected(this, play, player);
         return;
@@ -1661,7 +1689,7 @@ void EnOssan_State_SelectMaskItem(EnOssan* this, PlayState* play, Player* player
     EnGirlA* item = this->shelfSlots[this->cursorIndex];
 
     if (!EnOssan_TakeItemOffShelf(this)) {
-        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ズーム中！！" VT_RST "\n", __FILE__, __LINE__);
+        osSyncPrintf("%s[%d]:" VT_FGCOL(GREEN) "ã‚ºãƒ¼ãƒ ä¸­ï¼ï¼" VT_RST "\n", __FILE__, __LINE__);
         return;
     }
     if (talkState == TEXT_STATE_EVENT) {
@@ -1776,7 +1804,7 @@ void EnOssan_State_ContinueShoppingPrompt(EnOssan* this, PlayState* play, Player
             if (!EnOssan_TestEndInteraction(this, play, &play->state.input[0])) {
                 switch (play->msgCtx.choiceIndex) {
                     case 0:
-                        osSyncPrintf(VT_FGCOL(YELLOW) "★★★ 続けるよ！！ ★★★" VT_RST "\n");
+                        osSyncPrintf(VT_FGCOL(YELLOW) "â˜…â˜…â˜… ç¶šã‘ã‚‹ã‚ˆï¼ï¼ â˜…â˜…â˜…" VT_RST "\n");
                         player->actor.shape.rot.y += 0x8000;
                         player->stateFlags2 |= PLAYER_STATE2_DISABLE_DRAW;
                         Play_SetViewpoint(play, 2);
@@ -1786,7 +1814,7 @@ void EnOssan_State_ContinueShoppingPrompt(EnOssan* this, PlayState* play, Player
                         break;
                     case 1:
                     default:
-                        osSyncPrintf(VT_FGCOL(YELLOW) "★★★ やめるよ！！ ★★★" VT_RST "\n");
+                        osSyncPrintf(VT_FGCOL(YELLOW) "â˜…â˜…â˜… ã‚„ã‚ã‚‹ã‚ˆï¼ï¼ â˜…â˜…â˜…" VT_RST "\n");
                         EnOssan_EndInteraction(play, this);
                         break;
                 }
@@ -2200,13 +2228,13 @@ void EnOssan_InitActionFunc(EnOssan* this, PlayState* play) {
         if (this->shelves == NULL) {
             osSyncPrintf(VT_COL(RED, WHITE));
             // "Warning!! There are no shelves!!"
-            osSyncPrintf("★★★ 警告！！ 棚がないよ！！ ★★★\n");
+            osSyncPrintf("â˜…â˜…â˜… è­¦å‘Šï¼ï¼ æ£šãŒãªã„ã‚ˆï¼ï¼ â˜…â˜…â˜…\n");
             osSyncPrintf(VT_RST);
             return;
         }
 
         // "Shopkeeper (params) init"
-        osSyncPrintf(VT_FGCOL(YELLOW) "◇◇◇ 店のおやじ( %d ) 初期設定 ◇◇◇" VT_RST "\n", this->actor.params);
+        osSyncPrintf(VT_FGCOL(YELLOW) "â—‡â—‡â—‡ åº—ã®ãŠã‚„ã˜( %d ) åˆæœŸè¨­å®š â—‡â—‡â—‡" VT_RST "\n", this->actor.params);
 
         this->actor.world.pos.x += sShopkeeperPositionOffsets[this->actor.params].x;
         this->actor.world.pos.y += sShopkeeperPositionOffsets[this->actor.params].y;
