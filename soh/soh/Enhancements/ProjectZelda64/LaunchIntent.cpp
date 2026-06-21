@@ -5,6 +5,7 @@
 #include <string>
 
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
+#include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
 
 extern "C" {
@@ -17,12 +18,12 @@ extern GameState* gGameState;
 extern SaveContext gSaveContext;
 
 void Sram_InitDebugSave(void);
-void Select_LoadGame(SelectContext* selectContext, s32 entranceIndex);
 }
 
 namespace {
 
 constexpr const char* kLaunchIntentFileName = "projectzelda64_launch_intent.json";
+constexpr const char* kSuppressNextPortalFileName = "projectzelda64_suppress_next_oot_portal.txt";
 constexpr s32 kHappyMaskShopEntrance = 0x0530; // ENTR_HAPPY_MASK_SHOP_0
 
 bool gProjectZelda64IntentConsumed = false;
@@ -40,6 +41,17 @@ bool Contains(const std::string& text, const char* value) {
     return text.find(value) != std::string::npos;
 }
 
+void WriteSuppressNextPortalMarker() {
+    const auto suppressPath = std::filesystem::current_path() / kSuppressNextPortalFileName;
+    std::ofstream suppressMarker(suppressPath, std::ios::trunc);
+    if (!suppressMarker.is_open()) {
+        std::cout << "[ProjectZelda64] failed to write suppress marker: " << suppressPath.string() << '\n';
+        return;
+    }
+
+    suppressMarker << "suppress next Happy Mask Shop portal after MM return\n";
+}
+
 bool ConsumeLaunchIntentFromPath(const std::filesystem::path& path) {
     std::error_code existsError;
     if (!std::filesystem::exists(path, existsError) || existsError) {
@@ -53,20 +65,26 @@ bool ConsumeLaunchIntentFromPath(const std::filesystem::path& path) {
         Contains(intent, "\"targetGame\":\"oot\"");
 
     const bool isHappyMaskTarget =
-        Contains(intent, "Happy Mask") ||
-        Contains(intent, "HAPPY_MASK") ||
         Contains(intent, "ENTR_HAPPY_MASK_SHOP_0") ||
-        Contains(intent, "ENTR_MARKET_DAY_OUTSIDE_HAPPY_MASK_SHOP") ||
-        Contains(intent, "happy_mask_shop");
+        Contains(intent, "\"nativeEntranceIndex\": 1328") ||
+        Contains(intent, "\"nativeEntranceIndex\":1328") ||
+        Contains(intent, "Happy Mask");
 
-    if (!isOot || !isHappyMaskTarget) {
+    const bool isReturnFromMm =
+        Contains(intent, "\"sourceGame\": \"mm\"") ||
+        Contains(intent, "\"sourceGame\":\"mm\"") ||
+        Contains(intent, "mm.enter_clock_tower_door") ||
+        Contains(intent, "Clock Tower");
+
+    if (!isOot || !isHappyMaskTarget || !isReturnFromMm) {
         return false;
     }
 
     std::error_code removeError;
     std::filesystem::remove(path, removeError);
 
-    std::cout << "[ProjectZelda64] consumed OoT launch intent: " << path.string() << '\n';
+    WriteSuppressNextPortalMarker();
+    std::cout << "[ProjectZelda64] consumed OoT return launch intent: " << path.string() << '\n';
     return true;
 }
 
@@ -107,6 +125,10 @@ void PrepareHappyMaskShopSaveState() {
     gSaveContext.natureAmbienceId = 0xFF;
     gSaveContext.showTitleCard = true;
     gSaveContext.nextTransitionType = TRANS_TYPE_FADE_BLACK_FAST;
+    gSaveContext.respawnFlag = 0;
+    gSaveContext.respawn[RESPAWN_MODE_DOWN].entranceIndex = kHappyMaskShopEntrance;
+    gSaveContext.respawn[RESPAWN_MODE_DOWN].roomIndex = 0;
+    gSaveContext.respawn[RESPAWN_MODE_DOWN].playerParams = 0xDFF;
 
     for (int buttonIndex = 0; buttonIndex < ARRAY_COUNT(gSaveContext.buttonStatus); buttonIndex++) {
         gSaveContext.buttonStatus[buttonIndex] = BTN_ENABLED;
@@ -115,34 +137,30 @@ void PrepareHappyMaskShopSaveState() {
     gWeatherMode = 0;
 }
 
-void BootDirectlyToHappyMaskShopIfIntentExists(void* gameState) {
-    if (!TryConsumeHappyMaskLaunchIntent()) {
+void BootToHappyMaskShop() {
+    PrepareHappyMaskShopSaveState();
+
+    if (gGameState != nullptr) {
+        gGameState->running = false;
+        SET_NEXT_GAMESTATE(gGameState, Play_Init, PlayState);
+    }
+
+    GameInteractor_ExecuteOnLoadGame(gSaveContext.fileNum);
+    std::cout << "[ProjectZelda64] booting OoT directly into Happy Mask Shop\n";
+}
+
+void CheckLaunchIntentOnFrame() {
+    if (gPlayState != nullptr) {
         return;
     }
 
-    PrepareHappyMaskShopSaveState();
-
-    auto* titleContext = static_cast<TitleContext*>(gameState);
-    titleContext->exit = true;
-    titleContext->state.running = false;
-
-    STOP_GAMESTATE(&titleContext->state);
-    Select_LoadGame(reinterpret_cast<SelectContext*>(&titleContext->state), kHappyMaskShopEntrance);
-
-    std::cout << "[ProjectZelda64] booting OoT directly to Happy Mask Shop\n";
-}
-
-void ApplyHappyMaskLaunchIntentOnLoadGame(int32_t) {
     if (TryConsumeHappyMaskLaunchIntent()) {
-        PrepareHappyMaskShopSaveState();
-        gSaveContext.entranceIndex = kHappyMaskShopEntrance;
-        std::cout << "[ProjectZelda64] applied OoT launch intent on load game\n";
+        BootToHappyMaskShop();
     }
 }
 
 void RegisterProjectZelda64LaunchIntent() {
-    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnZTitleInit>(BootDirectlyToHappyMaskShopIfIntentExists);
-    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnLoadGame>(ApplyHappyMaskLaunchIntentOnLoadGame);
+    GameInteractor::Instance->RegisterGameHook<GameInteractor::OnGameFrameUpdate>(CheckLaunchIntentOnFrame);
 }
 
 static RegisterShipInitFunc initFunc(RegisterProjectZelda64LaunchIntent);
