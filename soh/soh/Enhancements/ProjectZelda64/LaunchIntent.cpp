@@ -4,6 +4,8 @@
 #include <iterator>
 #include <string>
 
+#include <libultraship/bridge/consolevariablebridge.h>
+
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
@@ -113,6 +115,11 @@ void PrepareHappyMaskShopSaveState() {
     gSaveContext.gameMode = GAMEMODE_NORMAL;
     gSaveContext.fileNum = 0xFE;
     Sram_InitDebugSave();
+
+    // ProjectZelda64: this launch intent came from MM returning to OoT.
+    // Suppress the Happy Mask Shop portal once so OoT does not immediately route back to MM.
+    CVarSetInteger("gProjectZelda64.SuppressHappyMaskPortal", 1);
+
     gSaveContext.fileNum = 0xFF;
 
     gSaveContext.entranceIndex = kHappyMaskShopEntrance;
