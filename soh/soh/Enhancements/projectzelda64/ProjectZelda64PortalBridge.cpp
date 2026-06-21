@@ -12,6 +12,7 @@ extern "C" {
 
 namespace {
 constexpr const char* kEnableOoTPortalsCVar = "gProjectZelda64.EnableOoTPortals";
+constexpr const char* kSuppressHappyMaskPortalCVar = "gProjectZelda64.SuppressHappyMaskPortal";
 constexpr const char* kPortalEventFileName = "projectzelda64_portal_event.json";
 
 // OoT entrance index for entering the Happy Mask Shop interior.
@@ -20,6 +21,12 @@ constexpr const char* kPortalEventFileName = "projectzelda64_portal_event.json";
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
 
 void WritePortalEventFile() {
+    if (CVarGetInteger(kSuppressHappyMaskPortalCVar, 0)) {
+        CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
+        SPDLOG_INFO("ProjectZelda64: suppressed one Happy Mask Shop portal after MM return");
+        return;
+    }
+
     const std::filesystem::path eventPath = std::filesystem::current_path() / kPortalEventFileName;
     std::ofstream eventFile(eventPath, std::ios::trunc);
 
