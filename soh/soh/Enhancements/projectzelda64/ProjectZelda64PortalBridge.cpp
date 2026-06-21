@@ -49,6 +49,11 @@ void WritePortalEventFile() {
 }
 
 void RegisterProjectZelda64PortalBridge() {
+    // CVar values can persist between Shipwright sessions. The suppress flag is only meant to be
+    // an in-process one-shot set by a ProjectZelda64 MM->OoT launch intent, so clear stale values
+    // on startup. LaunchIntent.cpp sets it again later when a real return intent is consumed.
+    CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
+
     COND_HOOK(OnSceneInit, CVarGetInteger(kEnableOoTPortalsCVar, 1), [](int16_t sceneNum) {
         // SceneInit runs after the normal entrance has already loaded. This is intentionally a safe first
         // integration step: it lets ProjectZelda64 detect the portal without changing vanilla Shipwright behavior yet.
