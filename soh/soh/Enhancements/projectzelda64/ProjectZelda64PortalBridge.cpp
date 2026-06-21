@@ -1,4 +1,4 @@
-﻿#include <libultraship/bridge/consolevariablebridge.h>
+#include <libultraship/bridge/consolevariablebridge.h>
 #include <filesystem>
 #include <fstream>
 #include <spdlog/spdlog.h>
@@ -8,6 +8,7 @@
 #include "soh/ShipInit.hpp"
 
 extern "C" {
+#include "global.h"
 #include "variables.h"
 }
 
@@ -15,12 +16,26 @@ namespace {
 constexpr const char* kEnableOoTPortalsCVar = "gProjectZelda64.EnableOoTPortals";
 constexpr const char* kSuppressHappyMaskPortalCVar = "gProjectZelda64.SuppressHappyMaskPortal";
 constexpr const char* kPortalEventFileName = "projectzelda64_portal_event.json";
+constexpr const char* kOotSaveSnapshotFileName = "projectzelda64_oot_save_snapshot.bin";
 
 constexpr uint16_t kProjectZelda64DevicePromptTextId = 0x71F0;
 constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
 
 // OoT entrance index for the Happy Mask Shop interior.
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
+
+void WriteOotSaveSnapshot() {
+    const std::filesystem::path snapshotPath = std::filesystem::current_path() / kOotSaveSnapshotFileName;
+    std::ofstream snapshotFile(snapshotPath, std::ios::binary | std::ios::trunc);
+
+    if (!snapshotFile.is_open()) {
+        SPDLOG_WARN("ProjectZelda64: failed to open OoT save snapshot file: {}", snapshotPath.string());
+        return;
+    }
+
+    snapshotFile.write(reinterpret_cast<const char*>(&gSaveContext), sizeof(gSaveContext));
+    SPDLOG_INFO("ProjectZelda64: wrote OoT save snapshot to {}", snapshotPath.string());
+}
 
 void WritePortalEventFile(bool honorSuppressFlag) {
     if (honorSuppressFlag && CVarGetInteger(kSuppressHappyMaskPortalCVar, 0)) {
@@ -87,6 +102,7 @@ extern "C" void ProjectZelda64_WriteHappyMaskSalesmanPortalEvent(void) {
     // The suppress flag only mattered for the old automatic entry trigger.
     // A deliberate salesman "Yes" should always write the portal event.
     CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
+    WriteOotSaveSnapshot();
     WritePortalEventFile(false);
 }
 
