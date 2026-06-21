@@ -42,9 +42,11 @@ void WritePortalEventFile() {
 }
 
 void RegisterProjectZelda64PortalBridge() {
-    COND_HOOK(OnSceneInit, CVarGetInteger(kEnableOoTPortalsCVar, 0), [](int16_t sceneNum) {
+    COND_HOOK(OnSceneInit, CVarGetInteger(kEnableOoTPortalsCVar, 1), [](int16_t sceneNum) {
         // SceneInit runs after the normal entrance has already loaded. This is intentionally a safe first
         // integration step: it lets ProjectZelda64 detect the portal without changing vanilla Shipwright behavior yet.
+        // The bridge defaults on in Angelo's integration fork so local smoke tests do not require a hidden CVar setter.
+        // Setting gProjectZelda64.EnableOoTPortals to 0 still disables this hook.
         if (gSaveContext.entranceIndex == kHappyMaskShopEntrance) {
             SPDLOG_INFO("ProjectZelda64: detected OoT Happy Mask Shop portal scene={}, entrance=0x{:04X}", sceneNum,
                         gSaveContext.entranceIndex);
