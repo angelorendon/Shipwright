@@ -1,8 +1,9 @@
-#include <libultraship/bridge/consolevariablebridge.h>
+﻿#include <libultraship/bridge/consolevariablebridge.h>
 #include <filesystem>
 #include <fstream>
 #include <spdlog/spdlog.h>
 
+#include "soh/Enhancements/custom-message/CustomMessageManager.h"
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/ShipInit.hpp"
 
@@ -15,13 +16,14 @@ constexpr const char* kEnableOoTPortalsCVar = "gProjectZelda64.EnableOoTPortals"
 constexpr const char* kSuppressHappyMaskPortalCVar = "gProjectZelda64.SuppressHappyMaskPortal";
 constexpr const char* kPortalEventFileName = "projectzelda64_portal_event.json";
 
-// OoT entrance index for entering the Happy Mask Shop interior.
-// ProjectZelda64 uses this as the first cross-game portal trigger:
-// OoT Happy Mask Shop -> MM Clock Town / Clock Tower Door exterior.
+constexpr uint16_t kProjectZelda64DevicePromptTextId = 0x71F0;
+constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
+
+// OoT entrance index for the Happy Mask Shop interior.
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
 
-void WritePortalEventFile() {
-    if (CVarGetInteger(kSuppressHappyMaskPortalCVar, 0)) {
+void WritePortalEventFile(bool honorSuppressFlag) {
+    if (honorSuppressFlag && CVarGetInteger(kSuppressHappyMaskPortalCVar, 0)) {
         CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
         SPDLOG_INFO("ProjectZelda64: suppressed one Happy Mask Shop portal after MM return");
         return;
@@ -45,27 +47,47 @@ void WritePortalEventFile() {
               << "  \"targetPortal\": \"mm.clock_town.clock_tower_door_exterior\"\n"
               << "}\n";
 
-    SPDLOG_INFO("ProjectZelda64: wrote OoT portal event to {}", eventPath.string());
+    SPDLOG_INFO("ProjectZelda64: wrote OoT salesman portal event to {}", eventPath.string());
+}
+
+void BuildProjectZelda64DevicePrompt(uint16_t* textId, bool* loadFromMessageTable) {
+    CustomMessage msg = CustomMessage(
+        "You look like an adventurer, young man. Last week, a strange man delivered to me a device unlike any I have seen before. Do you have the courage to use it on yourself and see what wonders it provides?\x1B%gYes&No%w",
+        "You look like an adventurer, young man. Last week, a strange man delivered to me a device unlike any I have seen before. Do you have the courage to use it on yourself and see what wonders it provides?\x1B%gYes&No%w",
+        "You look like an adventurer, young man. Last week, a strange man delivered to me a device unlike any I have seen before. Do you have the courage to use it on yourself and see what wonders it provides?\x1B%gYes&No%w");
+    msg.AutoFormat();
+    msg.LoadIntoFont();
+    *loadFromMessageTable = false;
+}
+
+void BuildProjectZelda64DeviceDecline(uint16_t* textId, bool* loadFromMessageTable) {
+    CustomMessage msg = CustomMessage(
+        "That is too bad. Come back again later if you change your mind.",
+        "That is too bad. Come back again later if you change your mind.",
+        "That is too bad. Come back again later if you change your mind.");
+    msg.AutoFormat();
+    msg.LoadIntoFont();
+    *loadFromMessageTable = false;
 }
 
 void RegisterProjectZelda64PortalBridge() {
     // CVar values can persist between Shipwright sessions. The suppress flag is only meant to be
-    // an in-process one-shot set by a ProjectZelda64 MM->OoT launch intent, so clear stale values
-    // on startup. LaunchIntent.cpp sets it again later when a real return intent is consumed.
+    // an in-process one-shot set by a ProjectZelda64 MM->OoT launch intent.
     CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
 
-    COND_HOOK(OnSceneInit, CVarGetInteger(kEnableOoTPortalsCVar, 1), [](int16_t sceneNum) {
-        // SceneInit runs after the normal entrance has already loaded. This is intentionally a safe first
-        // integration step: it lets ProjectZelda64 detect the portal without changing vanilla Shipwright behavior yet.
-        // The bridge defaults on in Angelo's integration fork so local smoke tests do not require a hidden CVar setter.
-        // Setting gProjectZelda64.EnableOoTPortals to 0 still disables this hook.
-        if (gSaveContext.entranceIndex == kHappyMaskShopEntrance) {
-            SPDLOG_INFO("ProjectZelda64: detected OoT Happy Mask Shop portal scene={}, entrance=0x{:04X}", sceneNum,
-                        gSaveContext.entranceIndex);
-            WritePortalEventFile();
-        }
-    });
+    // No automatic portal on shop entry anymore. The salesman dialog owns the portal trigger.
+    COND_ID_HOOK(OnOpenText, kProjectZelda64DevicePromptTextId, CVarGetInteger(kEnableOoTPortalsCVar, 1),
+                 BuildProjectZelda64DevicePrompt);
+    COND_ID_HOOK(OnOpenText, kProjectZelda64DeviceDeclineTextId, CVarGetInteger(kEnableOoTPortalsCVar, 1),
+                 BuildProjectZelda64DeviceDecline);
 }
 } // namespace
+
+extern "C" void ProjectZelda64_WriteHappyMaskSalesmanPortalEvent(void) {
+    // The suppress flag only mattered for the old automatic entry trigger.
+    // A deliberate salesman "Yes" should always write the portal event.
+    CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
+    WritePortalEventFile(false);
+}
 
 static RegisterShipInitFunc initFunc(RegisterProjectZelda64PortalBridge, { kEnableOoTPortalsCVar });
