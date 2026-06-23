@@ -8,15 +8,11 @@
 #include "soh/Enhancements/custom-message/CustomMessageManager.h"
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
-#include "soh/Enhancements/item-tables/ItemTableTypes.h"
 #include "soh/ShipInit.hpp"
 
 extern "C" {
 #include "global.h"
 #include "variables.h"
-
-extern PlayState* gPlayState;
-s32 GiveItemEntryWithoutActor(PlayState* play, GetItemEntry getItemEntry);
 }
 
 namespace {
@@ -30,11 +26,9 @@ constexpr const char* kSharedStateFileName = "projectzelda64_shared_state.json";
 
 constexpr uint16_t kProjectZelda64DevicePromptTextId = 0x71F0;
 constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
-constexpr uint16_t kProjectZelda64FierceDeityMaskTextId = 0x71F2;
 
 // OoT entrance index for the Happy Mask Shop interior.
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
-bool gProjectZelda64ShowingFierceDeityMaskReward = false;
 
 void AddPathIfUnique(std::vector<std::filesystem::path>& paths, std::set<std::string>& seen,
                      const std::filesystem::path& path) {
@@ -112,45 +106,6 @@ void WriteFierceDeityMaskSharedState() {
     SPDLOG_INFO("ProjectZelda64: Fairy Ocarina reward redirected to MM Fierce Deity Mask shared state");
 }
 
-void QueueFierceDeityMaskGetAnimation() {
-    if (gPlayState == nullptr) {
-        return;
-    }
-
-    // Shipwright/OoT does not currently ship MM's Fierce Deity Mask get-item model.
-    // Use OoT's Mask of Truth get-item model as a temporary placeholder, but show a ProjectZelda64-specific
-    // Fierce Deity Mask message and keep the actual grant in MM-only shared state.
-    GetItemEntry fdMaskPreview = {
-        ITEM_MASK_TRUTH,
-        0x80,
-        GID_MASK_TRUTH + 1,
-        kProjectZelda64FierceDeityMaskTextId,
-        OBJECT_GI_TRUTH_MASK,
-        MOD_NONE,
-        TABLE_VANILLA,
-        GI_MASK_TRUTH,
-        GID_MASK_TRUTH,
-        true,
-        ITEM_FROM_NPC,
-        ITEM_CATEGORY_MAJOR,
-        ITEM_MASK_TRUTH,
-        MOD_NONE,
-        NULL,
-    };
-
-    gProjectZelda64ShowingFierceDeityMaskReward = GiveItemEntryWithoutActor(gPlayState, fdMaskPreview);
-}
-
-void BuildProjectZelda64FierceDeityMaskMessage(uint16_t* textId, bool* loadFromMessageTable) {
-    CustomMessage msg = CustomMessage(
-        "You got the %gFierce Deity Mask%w!\nIt seems to belong to another world...",
-        "You got the %gFierce Deity Mask%w!\nIt seems to belong to another world...",
-        "You got the %gFierce Deity Mask%w!\nIt seems to belong to another world...");
-    msg.AutoFormat();
-    msg.LoadIntoFont();
-    *loadFromMessageTable = false;
-}
-
 void WriteOotSaveSnapshot() {
     const std::filesystem::path snapshotPath = std::filesystem::current_path() / kOotSaveSnapshotFileName;
     std::ofstream snapshotFile(snapshotPath, std::ios::binary | std::ios::trunc);
@@ -221,23 +176,8 @@ void RegisterProjectZelda64PortalBridge() {
 
     COND_VB_SHOULD(VB_GIVE_ITEM_FAIRY_OCARINA, CVarGetInteger(kEnableFdMaskOcarinaExperimentCVar, 1), {
         WriteFierceDeityMaskSharedState();
-        QueueFierceDeityMaskGetAnimation();
         *should = false;
     });
-
-    COND_HOOK(OnItemReceive, CVarGetInteger(kEnableFdMaskOcarinaExperimentCVar, 1), [](GetItemEntry itemEntry) {
-        if (!gProjectZelda64ShowingFierceDeityMaskReward || itemEntry.textId != kProjectZelda64FierceDeityMaskTextId) {
-            return;
-        }
-
-        // The OoT placeholder get animation briefly uses the Mask of Truth item path.
-        // Remove it immediately so the reward remains MM-only until the Clock Town transfer applies it.
-        gSaveContext.inventory.items[SLOT_TRADE_CHILD] = ITEM_NONE;
-        gProjectZelda64ShowingFierceDeityMaskReward = false;
-    });
-
-    COND_ID_HOOK(OnOpenText, kProjectZelda64FierceDeityMaskTextId, CVarGetInteger(kEnableFdMaskOcarinaExperimentCVar, 1),
-                 BuildProjectZelda64FierceDeityMaskMessage);
 
     // No automatic portal on shop entry anymore. The salesman dialog owns the portal trigger.
     COND_ID_HOOK(OnOpenText, kProjectZelda64DevicePromptTextId, CVarGetInteger(kEnableOoTPortalsCVar, 1),
