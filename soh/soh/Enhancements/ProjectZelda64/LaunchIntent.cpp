@@ -1,8 +1,13 @@
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <optional>
+#include <regex>
+#include <set>
 #include <string>
+#include <vector>
 
 #include <libultraship/bridge/consolevariablebridge.h>
 
@@ -27,6 +32,7 @@ namespace {
 constexpr const char* kLaunchIntentFileName = "projectzelda64_launch_intent.json";
 constexpr const char* kSuppressNextPortalFileName = "projectzelda64_suppress_next_oot_portal.txt";
 constexpr const char* kOotSaveSnapshotFileName = "projectzelda64_oot_save_snapshot.bin";
+constexpr const char* kSharedRupeesFileName = "projectzelda64_shared_rupees.json";
 constexpr s32 kHappyMaskShopEntrance = 0x0530; // ENTR_HAPPY_MASK_SHOP_0
 
 bool gProjectZelda64IntentConsumed = false;
@@ -42,6 +48,78 @@ std::string ReadWholeFile(const std::filesystem::path& path) {
 
 bool Contains(const std::string& text, const char* value) {
     return text.find(value) != std::string::npos;
+}
+
+void AddPathIfUnique(std::vector<std::filesystem::path>& paths, std::set<std::string>& seen,
+                     const std::filesystem::path& path) {
+    const auto key = path.lexically_normal().string();
+    if (seen.insert(key).second) {
+        paths.push_back(path.lexically_normal());
+    }
+}
+
+std::vector<std::filesystem::path> SharedRupeePaths() {
+    std::vector<std::filesystem::path> paths;
+    std::set<std::string> seen;
+
+    std::error_code currentPathError;
+    auto base = std::filesystem::current_path(currentPathError);
+    if (currentPathError) {
+        return paths;
+    }
+
+    for (int depth = 0; depth < 8 && !base.empty(); depth++) {
+        AddPathIfUnique(paths, seen, base / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "build" / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "Shipwright" / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "Shipwright" / "build" / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "2ship2harkinian" / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "2ship2harkinian" / "build" / "x64" / "Release" / kSharedRupeesFileName);
+
+        const auto parent = base.parent_path();
+        if (parent == base) {
+            break;
+        }
+        base = parent;
+    }
+
+    return paths;
+}
+
+std::optional<int> ExtractSharedRupees(const std::string& json) {
+    const std::regex fieldRegex("\\\"sharedRupees\\\"\\s*:\\s*(-?[0-9]+)");
+    std::smatch match;
+    if (!std::regex_search(json, match, fieldRegex) || match.size() < 2) {
+        return std::nullopt;
+    }
+
+    return std::stoi(match[1].str());
+}
+
+std::optional<int> ReadSharedRupeesFromPath(const std::filesystem::path& path) {
+    std::error_code existsError;
+    if (!std::filesystem::exists(path, existsError) || existsError) {
+        return std::nullopt;
+    }
+
+    return ExtractSharedRupees(ReadWholeFile(path));
+}
+
+void ApplySharedRupeesIfPresent() {
+    for (const auto& path : SharedRupeePaths()) {
+        const auto rupees = ReadSharedRupeesFromPath(path);
+        if (!rupees.has_value()) {
+            continue;
+        }
+
+        const int walletCapacity = CUR_CAPACITY(UPG_WALLET);
+        gSaveContext.rupees = static_cast<s16>(std::clamp(*rupees, 0, walletCapacity));
+        gSaveContext.rupeeAccumulator = 0;
+        std::cout << "[ProjectZelda64] restored shared rupees from " << path.string() << ": " << gSaveContext.rupees
+                  << '\n';
+        return;
+    }
 }
 
 bool TryRestoreOotSaveSnapshotFromPath(const std::filesystem::path& path) {
@@ -151,6 +229,7 @@ void PrepareHappyMaskShopSaveState() {
     gSaveContext.fileNum = 0xFE;
     Sram_InitDebugSave();
     TryRestoreOotSaveSnapshot();
+    ApplySharedRupeesIfPresent();
 
     // ProjectZelda64: this launch intent came from MM returning to OoT.
     // Suppress the Happy Mask Shop portal once so OoT does not immediately route back to MM.
