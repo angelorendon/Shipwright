@@ -1,7 +1,9 @@
 #include <libultraship/bridge/consolevariablebridge.h>
 #include <filesystem>
 #include <fstream>
+#include <set>
 #include <spdlog/spdlog.h>
+#include <vector>
 
 #include "soh/Enhancements/custom-message/CustomMessageManager.h"
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
@@ -17,12 +19,73 @@ constexpr const char* kEnableOoTPortalsCVar = "gProjectZelda64.EnableOoTPortals"
 constexpr const char* kSuppressHappyMaskPortalCVar = "gProjectZelda64.SuppressHappyMaskPortal";
 constexpr const char* kPortalEventFileName = "projectzelda64_portal_event.json";
 constexpr const char* kOotSaveSnapshotFileName = "projectzelda64_oot_save_snapshot.bin";
+constexpr const char* kSharedRupeesFileName = "projectzelda64_shared_rupees.json";
 
 constexpr uint16_t kProjectZelda64DevicePromptTextId = 0x71F0;
 constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
 
 // OoT entrance index for the Happy Mask Shop interior.
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
+
+void AddPathIfUnique(std::vector<std::filesystem::path>& paths, std::set<std::string>& seen,
+                     const std::filesystem::path& path) {
+    const auto key = path.lexically_normal().string();
+    if (seen.insert(key).second) {
+        paths.push_back(path.lexically_normal());
+    }
+}
+
+std::vector<std::filesystem::path> SharedRupeePaths() {
+    std::vector<std::filesystem::path> paths;
+    std::set<std::string> seen;
+
+    std::error_code currentPathError;
+    auto base = std::filesystem::current_path(currentPathError);
+    if (currentPathError) {
+        return paths;
+    }
+
+    for (int depth = 0; depth < 8 && !base.empty(); depth++) {
+        AddPathIfUnique(paths, seen, base / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "build" / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "Shipwright" / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "Shipwright" / "build" / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "2ship2harkinian" / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "2ship2harkinian" / "build" / "x64" / "Release" / kSharedRupeesFileName);
+
+        const auto parent = base.parent_path();
+        if (parent == base) {
+            break;
+        }
+        base = parent;
+    }
+
+    return paths;
+}
+
+void WriteSharedRupees() {
+    const int rupees = gSaveContext.rupees;
+
+    for (const auto& path : SharedRupeePaths()) {
+        const auto parent = path.parent_path();
+        std::error_code existsError;
+        if (!parent.empty() && (!std::filesystem::exists(parent, existsError) || existsError)) {
+            continue;
+        }
+
+        std::ofstream output(path, std::ios::trunc);
+        if (!output.is_open()) {
+            continue;
+        }
+
+        output << "{\n"
+               << "  \"schema\": 1,\n"
+               << "  \"sourceGame\": \"oot\",\n"
+               << "  \"sharedRupees\": " << rupees << "\n"
+               << "}\n";
+    }
+}
 
 void WriteOotSaveSnapshot() {
     const std::filesystem::path snapshotPath = std::filesystem::current_path() / kOotSaveSnapshotFileName;
@@ -58,6 +121,7 @@ void WritePortalEventFile(bool honorSuppressFlag) {
               << "  \"event\": \"oot.enter_happy_mask_shop\",\n"
               << "  \"sourceEntrance\": \"ENTR_HAPPY_MASK_SHOP_0\",\n"
               << "  \"sourceEntranceIndex\": " << kHappyMaskShopEntrance << ",\n"
+              << "  \"sharedRupees\": " << gSaveContext.rupees << ",\n"
               << "  \"targetGame\": \"mm\",\n"
               << "  \"targetPortal\": \"mm.clock_town.clock_tower_door_exterior\"\n"
               << "}\n";
@@ -103,6 +167,7 @@ extern "C" void ProjectZelda64_WriteHappyMaskSalesmanPortalEvent(void) {
     // A deliberate salesman "Yes" should always write the portal event.
     CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
     WriteOotSaveSnapshot();
+    WriteSharedRupees();
     WritePortalEventFile(false);
 }
 
