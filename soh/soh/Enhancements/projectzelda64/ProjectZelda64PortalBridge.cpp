@@ -68,6 +68,8 @@ std::vector<std::filesystem::path> SharedFilePaths(const char* fileName) {
 }
 
 void WriteJsonToSharedPaths(const char* fileName, const std::string& json) {
+    bool wroteAny = false;
+
     for (const auto& path : SharedFilePaths(fileName)) {
         const auto parent = path.parent_path();
         std::error_code existsError;
@@ -81,6 +83,12 @@ void WriteJsonToSharedPaths(const char* fileName, const std::string& json) {
         }
 
         output << json;
+        wroteAny = true;
+        SPDLOG_INFO("ProjectZelda64: wrote shared state file {}", path.string());
+    }
+
+    if (!wroteAny) {
+        SPDLOG_WARN("ProjectZelda64: failed to write shared state file {} to any known path", fileName);
     }
 }
 
@@ -193,6 +201,9 @@ extern "C" void ProjectZelda64_WriteHappyMaskSalesmanPortalEvent(void) {
     CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
     WriteOotSaveSnapshot();
     WriteSharedRupees();
+    if (CVarGetInteger(kEnableFdMaskOcarinaExperimentCVar, 1)) {
+        WriteFierceDeityMaskSharedState();
+    }
     WritePortalEventFile(false);
 }
 
