@@ -7,6 +7,7 @@
 
 #include "soh/Enhancements/custom-message/CustomMessageManager.h"
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
+#include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/ShipInit.hpp"
 
 extern "C" {
@@ -17,9 +18,11 @@ extern "C" {
 namespace {
 constexpr const char* kEnableOoTPortalsCVar = "gProjectZelda64.EnableOoTPortals";
 constexpr const char* kSuppressHappyMaskPortalCVar = "gProjectZelda64.SuppressHappyMaskPortal";
+constexpr const char* kEnableFdMaskOcarinaExperimentCVar = "gProjectZelda64.Experiment.FairyOcarinaGivesMmFierceDeityMask";
 constexpr const char* kPortalEventFileName = "projectzelda64_portal_event.json";
 constexpr const char* kOotSaveSnapshotFileName = "projectzelda64_oot_save_snapshot.bin";
 constexpr const char* kSharedRupeesFileName = "projectzelda64_shared_rupees.json";
+constexpr const char* kSharedStateFileName = "projectzelda64_shared_state.json";
 
 constexpr uint16_t kProjectZelda64DevicePromptTextId = 0x71F0;
 constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
@@ -35,7 +38,7 @@ void AddPathIfUnique(std::vector<std::filesystem::path>& paths, std::set<std::st
     }
 }
 
-std::vector<std::filesystem::path> SharedRupeePaths() {
+std::vector<std::filesystem::path> SharedFilePaths(const char* fileName) {
     std::vector<std::filesystem::path> paths;
     std::set<std::string> seen;
 
@@ -46,13 +49,13 @@ std::vector<std::filesystem::path> SharedRupeePaths() {
     }
 
     for (int depth = 0; depth < 8 && !base.empty(); depth++) {
-        AddPathIfUnique(paths, seen, base / kSharedRupeesFileName);
-        AddPathIfUnique(paths, seen, base / "x64" / "Release" / kSharedRupeesFileName);
-        AddPathIfUnique(paths, seen, base / "build" / "x64" / "Release" / kSharedRupeesFileName);
-        AddPathIfUnique(paths, seen, base / "extern" / "Shipwright" / "x64" / "Release" / kSharedRupeesFileName);
-        AddPathIfUnique(paths, seen, base / "extern" / "Shipwright" / "build" / "x64" / "Release" / kSharedRupeesFileName);
-        AddPathIfUnique(paths, seen, base / "extern" / "2ship2harkinian" / "x64" / "Release" / kSharedRupeesFileName);
-        AddPathIfUnique(paths, seen, base / "extern" / "2ship2harkinian" / "build" / "x64" / "Release" / kSharedRupeesFileName);
+        AddPathIfUnique(paths, seen, base / fileName);
+        AddPathIfUnique(paths, seen, base / "x64" / "Release" / fileName);
+        AddPathIfUnique(paths, seen, base / "build" / "x64" / "Release" / fileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "Shipwright" / "x64" / "Release" / fileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "Shipwright" / "build" / "x64" / "Release" / fileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "2ship2harkinian" / "x64" / "Release" / fileName);
+        AddPathIfUnique(paths, seen, base / "extern" / "2ship2harkinian" / "build" / "x64" / "Release" / fileName);
 
         const auto parent = base.parent_path();
         if (parent == base) {
@@ -64,10 +67,8 @@ std::vector<std::filesystem::path> SharedRupeePaths() {
     return paths;
 }
 
-void WriteSharedRupees() {
-    const int rupees = gSaveContext.rupees;
-
-    for (const auto& path : SharedRupeePaths()) {
+void WriteJsonToSharedPaths(const char* fileName, const std::string& json) {
+    for (const auto& path : SharedFilePaths(fileName)) {
         const auto parent = path.parent_path();
         std::error_code existsError;
         if (!parent.empty() && (!std::filesystem::exists(parent, existsError) || existsError)) {
@@ -79,12 +80,30 @@ void WriteSharedRupees() {
             continue;
         }
 
-        output << "{\n"
-               << "  \"schema\": 1,\n"
-               << "  \"sourceGame\": \"oot\",\n"
-               << "  \"sharedRupees\": " << rupees << "\n"
-               << "}\n";
+        output << json;
     }
+}
+
+void WriteSharedRupees() {
+    WriteJsonToSharedPaths(kSharedRupeesFileName,
+                           "{\n"
+                           "  \"schema\": 1,\n"
+                           "  \"sourceGame\": \"oot\",\n"
+                           "  \"sharedRupees\": " + std::to_string(gSaveContext.rupees) + "\n"
+                           "}\n");
+}
+
+void WriteFierceDeityMaskSharedState() {
+    WriteJsonToSharedPaths(kSharedStateFileName,
+                           "{\n"
+                           "  \"schema\": 1,\n"
+                           "  \"sourceGame\": \"oot\",\n"
+                           "  \"sourceEvent\": \"oot.lost_woods_bridge.fairy_ocarina\",\n"
+                           "  \"sharedItems\": {\n"
+                           "    \"mm.fierce_deity_mask\": true\n"
+                           "  }\n"
+                           "}\n");
+    SPDLOG_INFO("ProjectZelda64: Fairy Ocarina reward redirected to MM Fierce Deity Mask shared state");
 }
 
 void WriteOotSaveSnapshot() {
@@ -153,6 +172,12 @@ void RegisterProjectZelda64PortalBridge() {
     // CVar values can persist between Shipwright sessions. The suppress flag is only meant to be
     // an in-process one-shot set by a ProjectZelda64 MM->OoT launch intent.
     CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
+    CVarSetInteger(kEnableFdMaskOcarinaExperimentCVar, 1);
+
+    COND_VB_SHOULD(VB_GIVE_ITEM_FAIRY_OCARINA, CVarGetInteger(kEnableFdMaskOcarinaExperimentCVar, 1), {
+        WriteFierceDeityMaskSharedState();
+        *should = false;
+    });
 
     // No automatic portal on shop entry anymore. The salesman dialog owns the portal trigger.
     COND_ID_HOOK(OnOpenText, kProjectZelda64DevicePromptTextId, CVarGetInteger(kEnableOoTPortalsCVar, 1),
@@ -171,4 +196,5 @@ extern "C" void ProjectZelda64_WriteHappyMaskSalesmanPortalEvent(void) {
     WritePortalEventFile(false);
 }
 
-static RegisterShipInitFunc initFunc(RegisterProjectZelda64PortalBridge, { kEnableOoTPortalsCVar });
+static RegisterShipInitFunc initFunc(RegisterProjectZelda64PortalBridge,
+                                     { kEnableOoTPortalsCVar, kEnableFdMaskOcarinaExperimentCVar });
