@@ -8,11 +8,16 @@
 #include "soh/Enhancements/custom-message/CustomMessageManager.h"
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
+#include "soh/Enhancements/item-tables/ItemTableTypes.h"
 #include "soh/ShipInit.hpp"
 
 extern "C" {
 #include "global.h"
+#include "functions.h"
+#include "macros.h"
 #include "variables.h"
+
+extern PlayState* gPlayState;
 }
 
 namespace {
@@ -26,9 +31,12 @@ constexpr const char* kSharedStateFileName = "projectzelda64_shared_state.json";
 
 constexpr uint16_t kProjectZelda64DevicePromptTextId = 0x71F0;
 constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
+constexpr uint16_t kProjectZelda64FdMaskGetTextId = 0x71F2;
 
 // OoT entrance index for the Happy Mask Shop interior.
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
+
+GetItemEntry gQueuedFdMaskPresentation = GET_ITEM_NONE;
 
 void AddPathIfUnique(std::vector<std::filesystem::path>& paths, std::set<std::string>& seen,
                      const std::filesystem::path& path) {
@@ -114,6 +122,43 @@ void WriteFierceDeityMaskSharedState() {
     SPDLOG_INFO("ProjectZelda64: Fairy Ocarina reward redirected to MM Fierce Deity Mask shared state");
 }
 
+GetItemEntry BuildFdMaskPresentationEntry() {
+    // Shipwright/OoT does not currently have MM's Fierce Deity Mask get-item model available.
+    // Use OoT's Mask of Truth get-item model as a safe placeholder, but make the grant ITEM_NONE so
+    // the presentation does not add any OoT inventory item. MM still receives the real mask from shared state.
+    GetItemEntry entry = GET_ITEM(ITEM_NONE, OBJECT_GI_TRUTH_MASK, GID_MASK_TRUTH, kProjectZelda64FdMaskGetTextId, 0x80,
+                                  CHEST_ANIM_LONG, ITEM_CATEGORY_MAJOR, MOD_NONE, GI_NONE);
+    entry.drawItemId = ITEM_MASK_TRUTH;
+    return entry;
+}
+
+void QueueFdMaskPresentation() {
+    gQueuedFdMaskPresentation = BuildFdMaskPresentationEntry();
+    SPDLOG_INFO("ProjectZelda64: queued OoT Fierce Deity Mask get-item presentation");
+}
+
+void TryShowQueuedFdMaskPresentation() {
+    if (gQueuedFdMaskPresentation.itemId == ITEM_NONE && gQueuedFdMaskPresentation.textId == 0) {
+        return;
+    }
+
+    if (gPlayState == nullptr) {
+        return;
+    }
+
+    Player* player = GET_PLAYER(gPlayState);
+    if (player == nullptr || Player_InBlockingCsMode(gPlayState, player) ||
+        player->stateFlags1 & PLAYER_STATE1_IN_ITEM_CS || player->stateFlags1 & PLAYER_STATE1_GETTING_ITEM ||
+        player->stateFlags1 & PLAYER_STATE1_CARRYING_ACTOR) {
+        return;
+    }
+
+    const GetItemEntry entry = gQueuedFdMaskPresentation;
+    gQueuedFdMaskPresentation = GET_ITEM_NONE;
+    SPDLOG_INFO("ProjectZelda64: showing OoT Fierce Deity Mask get-item presentation");
+    GiveItemEntryWithoutActor(gPlayState, entry);
+}
+
 void WriteOotSaveSnapshot() {
     const std::filesystem::path snapshotPath = std::filesystem::current_path() / kOotSaveSnapshotFileName;
     std::ofstream snapshotFile(snapshotPath, std::ios::binary | std::ios::trunc);
@@ -176,6 +221,16 @@ void BuildProjectZelda64DeviceDecline(uint16_t* textId, bool* loadFromMessageTab
     *loadFromMessageTable = false;
 }
 
+void BuildProjectZelda64FdMaskGetMessage(uint16_t* textId, bool* loadFromMessageTable) {
+    CustomMessage msg = CustomMessage(
+        "You got the %rFierce Deity Mask%w!&It echoes from another world.",
+        "You got the %rFierce Deity Mask%w!&It echoes from another world.",
+        "You got the %rFierce Deity Mask%w!&It echoes from another world.");
+    msg.AutoFormat();
+    msg.LoadIntoFont();
+    *loadFromMessageTable = false;
+}
+
 void RegisterProjectZelda64PortalBridge() {
     // CVar values can persist between Shipwright sessions. The suppress flag is only meant to be
     // an in-process one-shot set by a ProjectZelda64 MM->OoT launch intent.
@@ -184,14 +239,19 @@ void RegisterProjectZelda64PortalBridge() {
 
     COND_VB_SHOULD(VB_GIVE_ITEM_FAIRY_OCARINA, CVarGetInteger(kEnableFdMaskOcarinaExperimentCVar, 1), {
         WriteFierceDeityMaskSharedState();
+        QueueFdMaskPresentation();
         *should = false;
     });
+
+    COND_HOOK(OnPlayerUpdate, CVarGetInteger(kEnableFdMaskOcarinaExperimentCVar, 1), TryShowQueuedFdMaskPresentation);
 
     // No automatic portal on shop entry anymore. The salesman dialog owns the portal trigger.
     COND_ID_HOOK(OnOpenText, kProjectZelda64DevicePromptTextId, CVarGetInteger(kEnableOoTPortalsCVar, 1),
                  BuildProjectZelda64DevicePrompt);
     COND_ID_HOOK(OnOpenText, kProjectZelda64DeviceDeclineTextId, CVarGetInteger(kEnableOoTPortalsCVar, 1),
                  BuildProjectZelda64DeviceDecline);
+    COND_ID_HOOK(OnOpenText, kProjectZelda64FdMaskGetTextId, CVarGetInteger(kEnableFdMaskOcarinaExperimentCVar, 1),
+                 BuildProjectZelda64FdMaskGetMessage);
 }
 } // namespace
 
