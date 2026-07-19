@@ -1382,6 +1382,12 @@ void AudioLoad_Init(void* heap, size_t heapSize) {
     memset(gAudioContext.seqLoadStatus, 5, sequenceMapSize);
     for (size_t i = 0; i < seqListSize; i++) {
         SequenceData sDat = ResourceMgr_LoadSeqByName(seqList[i]);
+        if (strcmp(seqList[i], "audio/sequences/034_Got_Key_Item") == 0) {
+            // A ProjectZelda64 mod pack may provide MM's Get Mask sequence at
+            // OoT's key-item path. Keep the OoT playback ID regardless of the
+            // sequence's original MM metadata.
+            sDat.seqNumber = NA_BGM_ITEM_GET;
+        }
         if (strcmp(seqList[i], "audio/sequences/GetMask_37") == 0) {
             size_t sequenceId = seqListSize - 1;
             while (sequenceMap[sequenceId] != NULL || AudioCollection_HasSequenceNum((u16)sequenceId)) {

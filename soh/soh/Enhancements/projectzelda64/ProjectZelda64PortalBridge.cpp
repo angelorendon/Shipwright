@@ -35,6 +35,8 @@ constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
 constexpr uint16_t kProjectZelda64GoronMaskTextId = 0x71F2;
 constexpr const char* kMmGoronMaskDisplayList =
     "__OTR__objects/object_gi_golonmask/gGiGoronMaskDL";
+constexpr const char* kMmGoronMaskEmptyDisplayList =
+    "__OTR__objects/object_gi_golonmask/gGiGoronMaskEmptyDL";
 
 // OoT entrance index for the Happy Mask Shop interior.
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
@@ -44,18 +46,37 @@ uint8_t gPreviousOotChildTradeItem = ITEM_NONE;
 
 void DrawMmGoronMask(PlayState* play, GetItemEntry*) {
     static Gfx* displayList = nullptr;
+    static Gfx* emptyDisplayList = nullptr;
     if (displayList == nullptr) {
         // This authentic MM resource has the same name as OoT's mask. Evict OoT's
         // cached version so archive priority can select the mod's MM resource.
         ResourceMgr_UnloadResource(kMmGoronMaskDisplayList);
+        ResourceMgr_UnloadResource(kMmGoronMaskEmptyDisplayList);
         displayList = ResourceMgr_LoadGfxByName(kMmGoronMaskDisplayList);
+        emptyDisplayList = ResourceMgr_LoadGfxByName(kMmGoronMaskEmptyDisplayList);
     }
-    if (displayList != nullptr) {
-        Gfx_DrawDListOpa(play, displayList);
+    if (displayList != nullptr && emptyDisplayList != nullptr) {
+        {
+        GraphicsContext* __gfxCtx = play->state.gfxCtx;
+
+        // MM defines the empty shell as opaque and the textured face as translucent.
+        // Drawing only the face through OoT's opaque helper produces the corrupted
+        // hybrid that was visible in the previous test.
+        Gfx_SetupDL_25Opa(play->state.gfxCtx);
+        gSPMatrix(POLY_OPA_DISP++, Matrix_NewMtx(play->state.gfxCtx, (char*)__FILE__, __LINE__),
+                  G_MTX_MODELVIEW | G_MTX_LOAD);
+        gSPDisplayList(POLY_OPA_DISP++, emptyDisplayList);
+
+        Gfx_SetupDL_25Xlu(play->state.gfxCtx);
+        gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, (char*)__FILE__, __LINE__),
+                  G_MTX_MODELVIEW | G_MTX_LOAD);
+        gSPDisplayList(POLY_XLU_DISP++, displayList);
+
+        }
     } else {
         static bool loggedMissingModel = false;
         if (!loggedMissingModel) {
-            SPDLOG_ERROR("ProjectZelda64: MM Goron Mask display list was not loaded from the mod archive");
+            SPDLOG_ERROR("ProjectZelda64: one or more MM Goron Mask display lists were not loaded");
             loggedMissingModel = true;
         }
     }
