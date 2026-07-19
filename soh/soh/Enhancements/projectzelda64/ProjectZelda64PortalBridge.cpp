@@ -9,12 +9,14 @@
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
 #include "soh/Enhancements/game-interactor/GameInteractor_Hooks.h"
 #include "soh/OTRGlobals.h"
+#include "soh/ResourceManagerHelpers.h"
 #include "soh/ShipInit.hpp"
 
 extern "C" {
 #include "global.h"
 #include "variables.h"
 GetItemEntry ItemTable_Retrieve(int16_t getItemID);
+extern uint16_t gProjectZelda64MmGetMaskSequenceId;
 }
 
 namespace {
@@ -30,10 +32,21 @@ constexpr const char* kSharedStateFileName = "projectzelda64_shared_state.json";
 constexpr uint16_t kProjectZelda64DevicePromptTextId = 0x71F0;
 constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
 constexpr uint16_t kProjectZelda64GoronMaskTextId = 0x71F2;
+constexpr const char* kMmGoronMaskDisplayList =
+    "projectzelda64/objects/object_gi_golonmask/gGiGoronMaskDL";
 
 // OoT entrance index for the Happy Mask Shop interior.
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
 bool gPendingGoronMaskReward = false;
+bool gUseMmGoronMaskFanfare = false;
+uint8_t gPreviousOotChildTradeItem = ITEM_NONE;
+
+void DrawMmGoronMask(PlayState* play, GetItemEntry*) {
+    Gfx* displayList = ResourceMgr_LoadGfxByName(kMmGoronMaskDisplayList);
+    if (displayList != nullptr) {
+        Gfx_DrawDListOpa(play, displayList);
+    }
+}
 
 void AddPathIfUnique(std::vector<std::filesystem::path>& paths, std::set<std::string>& seen,
                      const std::filesystem::path& path) {
@@ -205,6 +218,8 @@ void TryGivePendingGoronMaskReward() {
 
     GetItemEntry goronMaskEntry = ItemTable_Retrieve(GI_MASK_GORON);
     goronMaskEntry.textId = kProjectZelda64GoronMaskTextId;
+    goronMaskEntry.drawFunc = DrawMmGoronMask;
+    gUseMmGoronMaskFanfare = true;
     GiveItemEntryWithoutActor(gPlayState, goronMaskEntry);
 }
 
@@ -214,6 +229,9 @@ void OnProjectZelda64ItemReceive(GetItemEntry itemEntry) {
     }
 
     gPendingGoronMaskReward = false;
+    // The OoT item is only a presentation vehicle for this cross-game reward. Keep OoT's
+    // child-trade inventory exactly as it was; ProjectZelda64 grants the usable mask in MM.
+    gSaveContext.inventory.items[SLOT_TRADE_CHILD] = gPreviousOotChildTradeItem;
     WriteGoronMaskSharedState();
 }
 
@@ -224,6 +242,7 @@ void RegisterProjectZelda64PortalBridge() {
     CVarSetInteger(kEnableGoronMaskOcarinaExperimentCVar, 1);
 
     COND_VB_SHOULD(VB_GIVE_ITEM_FAIRY_OCARINA, CVarGetInteger(kEnableGoronMaskOcarinaExperimentCVar, 1), {
+        gPreviousOotChildTradeItem = gSaveContext.inventory.items[SLOT_TRADE_CHILD];
         gPendingGoronMaskReward = true;
         *should = false;
     });
@@ -251,6 +270,14 @@ extern "C" void ProjectZelda64_WriteHappyMaskSalesmanPortalEvent(void) {
     WriteOotSaveSnapshot();
     WriteSharedRupees();
     WritePortalEventFile(false);
+}
+
+extern "C" uint16_t ProjectZelda64_ConsumeMmGoronMaskFanfare(void) {
+    if (!gUseMmGoronMaskFanfare) {
+        return 0;
+    }
+    gUseMmGoronMaskFanfare = false;
+    return gProjectZelda64MmGetMaskSequenceId;
 }
 
 static RegisterShipInitFunc initFunc(RegisterProjectZelda64PortalBridge,

@@ -38,6 +38,8 @@ typedef struct {
 // opaque type for unpatched sound font data (should maybe get rid of this?)
 typedef void SoundFontData;
 
+u16 gProjectZelda64MmGetMaskSequenceId = 0;
+
 /* forward declarations */
 s32 AudioLoad_SyncInitSeqPlayerInternal(s32 playerIdx, s32 seqId, s32 skipTicks);
 SoundFontData* AudioLoad_SyncLoadFont(u32 fontId);
@@ -1443,6 +1445,9 @@ void AudioLoad_Init(void* heap, size_t heapSize) {
         AudioCollection_AddToCollection(customSeqList[j], seqNum);
 
         sDat->seqNumber = seqNum;
+        if (strcmp(customSeqList[j], "custom/music/ProjectZelda64_MM_GetMask") == 0) {
+            gProjectZelda64MmGetMaskSequenceId = seqNum;
+        }
         LUSLOG_DEBUG("Registered custom sequence \"%s\" as seqNum %d", customSeqList[j], seqNum);
         sequenceMap[sDat->seqNumber] = strdup(customSeqList[j]);
         seqNum++;

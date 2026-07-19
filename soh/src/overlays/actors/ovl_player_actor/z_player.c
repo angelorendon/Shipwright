@@ -36,6 +36,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+u16 ProjectZelda64_ConsumeMmGoronMaskFanfare(void);
+
 // Some player animations are played at this reduced speed, for reasons yet unclear.
 // This is called "adjusted" for now.
 #define PLAYER_ANIM_ADJUSTED_SPEED (2.0f / 3.0f)
@@ -14133,6 +14135,9 @@ s32 func_8084DFF4(PlayState* play, Player* this) {
         if (giEntry.modIndex == MOD_NONE) {
             if (IS_RANDO) {
                 Audio_PlayFanfare_Rando(giEntry);
+            } else if (giEntry.getItemId == GI_MASK_GORON &&
+                       (temp1 = ProjectZelda64_ConsumeMmGoronMaskFanfare()) != 0) {
+                Audio_PlayFanfare(temp1 | 0x900);
             } else if (((giEntry.itemId >= ITEM_RUPEE_GREEN) && (giEntry.itemId <= ITEM_RUPEE_RED)) ||
                        ((giEntry.itemId >= ITEM_RUPEE_PURPLE) && (giEntry.itemId <= ITEM_RUPEE_GOLD)) ||
                        (giEntry.itemId == ITEM_HEART)) {
