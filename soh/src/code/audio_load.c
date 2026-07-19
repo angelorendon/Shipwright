@@ -96,7 +96,7 @@ uintptr_t fontStart;
 uint32_t fontOffsets[8192];
 
 u16 Audio_RegisterProjectZelda64MmGetMaskSequence(void) {
-    static const char* sequencePath = "audio/sequences/GetMask_37";
+    static const char* sequencePath = "audio/sequences/projectzelda64/MM_GetMask";
 
     if (gProjectZelda64MmGetMaskSequenceId != 0) {
         return gProjectZelda64MmGetMaskSequenceId;
