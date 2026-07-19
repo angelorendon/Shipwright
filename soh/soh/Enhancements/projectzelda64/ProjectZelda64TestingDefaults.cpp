@@ -12,7 +12,7 @@ constexpr const char* kEnableTestingDefaultsCVar = "gProjectZelda64.EnableTestin
 void ApplyProjectZelda64TestingDefaults() {
     // Graphics defaults for repeated ProjectZelda64 smoke tests.
     CVarSetInteger("gSettings.MSAAValue", 8);
-    CVarSetInteger("gInterpolationFPS", 300);
+    CVarSetInteger("gSettings.InterpolationFPS", 300);
     CVarSetInteger("gSdlWindowedFullscreen", 1);
 
     // Speed Modifier defaults for quickly reaching the Happy Mask Shop during OoT portal tests.
@@ -20,6 +20,7 @@ void ApplyProjectZelda64TestingDefaults() {
     CVarSetInteger("gCheats.SpeedModifier.Enabled", 1);
     CVarSetInteger("gCheats.SpeedModifier.Mode", 3);
     CVarSetFloat("gCheats.SpeedModifier.Value", 5.0f);
+    CVarSetInteger("gCheats.SpeedModifier.DoesntChangeJump", 1);
 
     // Shipwright forks/versions have used slightly different names for the jump-distance/velocity guard.
     // Setting these harmless extra keys keeps Angelo's integration fork resilient across local rebases.
