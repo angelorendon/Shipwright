@@ -4,9 +4,6 @@
 #include <set>
 #include <spdlog/spdlog.h>
 #include <vector>
-#include <ship/Context.h>
-#include <ship/resource/archive/Archive.h>
-#include <ship/resource/archive/ArchiveManager.h>
 
 #include "soh/Enhancements/custom-message/CustomMessageManager.h"
 #include "soh/Enhancements/game-interactor/GameInteractor.h"
@@ -37,9 +34,9 @@ constexpr uint16_t kProjectZelda64DevicePromptTextId = 0x71F0;
 constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
 constexpr uint16_t kProjectZelda64GoronMaskTextId = 0x71F2;
 constexpr const char* kMmGoronMaskDisplayList =
-    "__OTR__objects/object_gi_golonmask/gGiGoronMaskDL";
+    "__OTR__objects/projectzelda64/mm_goron_mask/gGiGoronMaskDL";
 constexpr const char* kMmGoronMaskEmptyDisplayList =
-    "__OTR__objects/object_gi_golonmask/gGiGoronMaskEmptyDL";
+    "__OTR__objects/projectzelda64/mm_goron_mask/gGiGoronMaskEmptyDL";
 
 // OoT entrance index for the Happy Mask Shop interior.
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
@@ -47,43 +44,10 @@ bool gPendingGoronMaskReward = false;
 bool gUseMmGoronMaskFanfare = false;
 uint8_t gPreviousOotChildTradeItem = ITEM_NONE;
 
-void PrioritizeProjectZelda64AssetPack() {
-    auto archiveManager =
-        Ship::Context::GetRawInstance()->GetResourceManager()->GetArchiveManager();
-    auto archives = archiveManager->GetArchives();
-    std::shared_ptr<Ship::Archive> assetPack;
-
-    for (const auto& archive : *archives) {
-        if (std::filesystem::path(archive->GetPath()).filename() ==
-            "projectzelda64-mm-goron-mask.o2r") {
-            assetPack = archive;
-            break;
-        }
-    }
-
-    if (assetPack == nullptr) {
-        SPDLOG_ERROR("ProjectZelda64: could not find the MM reward asset pack to prioritize");
-        return;
-    }
-
-    // OoT's archive is mounted after the mods directory and otherwise wins all
-    // colliding resource names. Move this pack to the end of the archive list.
-    archiveManager->RemoveArchive(assetPack);
-    archiveManager->AddArchive(assetPack);
-    ResourceMgr_UnloadResource(kMmGoronMaskDisplayList);
-    ResourceMgr_UnloadResource(kMmGoronMaskEmptyDisplayList);
-    ResourceMgr_UnloadResource("__OTR__audio/sequences/034_Got_Key_Item");
-    SPDLOG_INFO("ProjectZelda64: promoted MM reward asset pack above oot.o2r");
-}
-
 void DrawMmGoronMask(PlayState* play, GetItemEntry*) {
     static Gfx* displayList = nullptr;
     static Gfx* emptyDisplayList = nullptr;
     if (displayList == nullptr) {
-        // This authentic MM resource has the same name as OoT's mask. Evict OoT's
-        // cached version so archive priority can select the mod's MM resource.
-        ResourceMgr_UnloadResource(kMmGoronMaskDisplayList);
-        ResourceMgr_UnloadResource(kMmGoronMaskEmptyDisplayList);
         displayList = ResourceMgr_LoadGfxByName(kMmGoronMaskDisplayList);
         emptyDisplayList = ResourceMgr_LoadGfxByName(kMmGoronMaskEmptyDisplayList);
     }
@@ -302,8 +266,6 @@ void OnProjectZelda64ItemReceive(GetItemEntry itemEntry) {
 }
 
 void RegisterProjectZelda64PortalBridge() {
-    PrioritizeProjectZelda64AssetPack();
-
     // CVar values can persist between Shipwright sessions. The suppress flag is only meant to be
     // an in-process one-shot set by a ProjectZelda64 MM->OoT launch intent.
     CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
