@@ -34,7 +34,7 @@ constexpr uint16_t kProjectZelda64DevicePromptTextId = 0x71F0;
 constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
 constexpr uint16_t kProjectZelda64GoronMaskTextId = 0x71F2;
 constexpr const char* kMmGoronMaskDisplayList =
-    "__OTR__projectzelda64/objects/object_gi_golonmask/gGiGoronMaskDL";
+    "__OTR__objects/object_gi_golonmask/gGiGoronMaskDL";
 
 // OoT entrance index for the Happy Mask Shop interior.
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
@@ -43,7 +43,13 @@ bool gUseMmGoronMaskFanfare = false;
 uint8_t gPreviousOotChildTradeItem = ITEM_NONE;
 
 void DrawMmGoronMask(PlayState* play, GetItemEntry*) {
-    Gfx* displayList = ResourceMgr_LoadGfxByName(kMmGoronMaskDisplayList);
+    static Gfx* displayList = nullptr;
+    if (displayList == nullptr) {
+        // This authentic MM resource has the same name as OoT's mask. Evict OoT's
+        // cached version so archive priority can select the mod's MM resource.
+        ResourceMgr_UnloadResource(kMmGoronMaskDisplayList);
+        displayList = ResourceMgr_LoadGfxByName(kMmGoronMaskDisplayList);
+    }
     if (displayList != nullptr) {
         Gfx_DrawDListOpa(play, displayList);
     } else {
