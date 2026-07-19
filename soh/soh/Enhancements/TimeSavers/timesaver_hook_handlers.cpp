@@ -1253,7 +1253,9 @@ void TimeSaverOnFlagSetHandler(int16_t flagType, int16_t flag) {
             case FLAG_EVENT_CHECK_INF:
                 switch (flag) {
                     case EVENTCHKINF_SPOKE_TO_SARIA_ON_BRIDGE:
-                        TimeSaverQueueItem(RG_FAIRY_OCARINA);
+                        if (!CVarGetInteger("gProjectZelda64.Experiment.FairyOcarinaGivesMmGoronMask", 0)) {
+                            TimeSaverQueueItem(RG_FAIRY_OCARINA);
+                        }
                         break;
                     case EVENTCHKINF_OBTAINED_KOKIRI_EMERALD_DEKU_TREE_DEAD:
                         TimeSaverQueueItem(RG_KOKIRI_EMERALD);
