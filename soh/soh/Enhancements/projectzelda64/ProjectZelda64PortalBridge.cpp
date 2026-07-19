@@ -17,6 +17,7 @@ extern "C" {
 #include "variables.h"
 GetItemEntry ItemTable_Retrieve(int16_t getItemID);
 extern uint16_t gProjectZelda64MmGetMaskSequenceId;
+uint16_t Audio_RegisterProjectZelda64MmGetMaskSequence(void);
 }
 
 namespace {
@@ -33,7 +34,7 @@ constexpr uint16_t kProjectZelda64DevicePromptTextId = 0x71F0;
 constexpr uint16_t kProjectZelda64DeviceDeclineTextId = 0x71F1;
 constexpr uint16_t kProjectZelda64GoronMaskTextId = 0x71F2;
 constexpr const char* kMmGoronMaskDisplayList =
-    "projectzelda64/objects/object_gi_golonmask/gGiGoronMaskDL";
+    "__OTR__projectzelda64/objects/object_gi_golonmask/gGiGoronMaskDL";
 
 // OoT entrance index for the Happy Mask Shop interior.
 constexpr int32_t kHappyMaskShopEntrance = 0x0530;
@@ -283,6 +284,9 @@ extern "C" uint16_t ProjectZelda64_ConsumeMmGoronMaskFanfare(void) {
         return 0;
     }
     gUseMmGoronMaskFanfare = false;
+    if (gProjectZelda64MmGetMaskSequenceId == 0) {
+        Audio_RegisterProjectZelda64MmGetMaskSequence();
+    }
     if (gProjectZelda64MmGetMaskSequenceId == 0) {
         SPDLOG_ERROR("ProjectZelda64: MM Get Mask sequence was not registered from the mod archive");
     } else {

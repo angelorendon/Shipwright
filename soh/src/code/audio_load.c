@@ -95,6 +95,40 @@ char** fontMap;
 uintptr_t fontStart;
 uint32_t fontOffsets[8192];
 
+u16 Audio_RegisterProjectZelda64MmGetMaskSequence(void) {
+    static const char* sequencePath = "custom/music/ProjectZelda64_MM_GetMask";
+
+    if (gProjectZelda64MmGetMaskSequenceId != 0) {
+        return gProjectZelda64MmGetMaskSequenceId;
+    }
+
+    SequenceData* sequence = ResourceMgr_LoadSeqPtrByName(sequencePath);
+    if (sequence == NULL) {
+        return 0;
+    }
+
+    size_t sequenceId = sequenceMapSize;
+    while (AudioCollection_HasSequenceNum((u16)sequenceId)) {
+        sequenceId++;
+    }
+    if (sequenceId > 0xFFFF) {
+        return 0;
+    }
+
+    const size_t previousMapSize = sequenceMapSize;
+    sequenceMapSize = sequenceId + 1;
+    sequenceMap = realloc(sequenceMap, (sequenceMapSize + 0xF) * sizeof(char*));
+    memset(&sequenceMap[previousMapSize], 0, (sequenceMapSize + 0xF - previousMapSize) * sizeof(char*));
+    gAudioContext.seqLoadStatus = realloc(gAudioContext.seqLoadStatus, sequenceMapSize);
+    memset(&gAudioContext.seqLoadStatus[previousMapSize], 5, sequenceMapSize - previousMapSize);
+
+    sequence->seqNumber = (u16)sequenceId;
+    sequenceMap[sequenceId] = strdup(sequencePath);
+    AudioCollection_AddToCollection((char*)sequencePath, (u16)sequenceId);
+    gProjectZelda64MmGetMaskSequenceId = (u16)sequenceId;
+    return gProjectZelda64MmGetMaskSequenceId;
+}
+
 void AudioLoad_DecreaseSampleDmaTtls(void) {
     u32 i;
 
