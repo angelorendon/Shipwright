@@ -97,6 +97,7 @@ uint32_t fontOffsets[8192];
 
 u16 Audio_RegisterProjectZelda64MmGetMaskSequence(void) {
     static const char* sequencePath = "audio/sequences/projectzelda64/MM_GetMask";
+    static const char* fontPath = "custom/fonts/ProjectZelda64_MM_Soundfont_15_PCM";
 
     if (gProjectZelda64MmGetMaskSequenceId != 0) {
         return gProjectZelda64MmGetMaskSequenceId;
@@ -106,6 +107,16 @@ u16 Audio_RegisterProjectZelda64MmGetMaskSequence(void) {
     if (sequence == NULL) {
         return 0;
     }
+
+    size_t fontId = 0;
+    while (fontId < fontMapSize && (fontMap[fontId] == NULL || strcmp(fontMap[fontId], fontPath) != 0)) {
+        fontId++;
+    }
+    if (fontId >= fontMapSize || fontId > 0xFF) {
+        return 0;
+    }
+    sequence->numFonts = 1;
+    sequence->fonts[0] = (u8)fontId;
 
     size_t sequenceId = sequenceMapSize;
     while (AudioCollection_HasSequenceNum((u16)sequenceId)) {
