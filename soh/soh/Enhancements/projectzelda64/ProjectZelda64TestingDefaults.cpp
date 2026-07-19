@@ -38,7 +38,8 @@ void ApplyProjectZelda64TestingDefaults() {
     CVarSetInteger("gEnhancements.TimeSavers.SkipCutscene.QuickBossDeaths", 1);
     CVarSetInteger("gEnhancements.TimeSavers.SkipCutscene.OnePoint", 1);
     CVarSetInteger("gEnhancements.TimeSavers.SkipOwlInteractions", 1);
-    CVarSetInteger("gEnhancements.TextSpeed", 5);
+    CVarSetInteger("gEnhancements.SkipText", 1);
+    CVarSetInteger("gEnhancements.TextSpeed", 6);
     CVarSetInteger("gEnhancements.SlowTextSpeed", 5);
 }
 

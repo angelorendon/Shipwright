@@ -199,6 +199,8 @@ extern "C" void ProjectZelda64_WriteHappyMaskSalesmanPortalEvent(void) {
     // The suppress flag only mattered for the old automatic entry trigger.
     // A deliberate salesman "Yes" should always write the portal event.
     CVarSetInteger(kSuppressHappyMaskPortalCVar, 0);
+    Audio_PlaySoundGeneral(NA_SE_OC_SECRET_WARP_OUT, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
+                           &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
     WriteOotSaveSnapshot();
     WriteSharedRupees();
     if (CVarGetInteger(kEnableFdMaskOcarinaExperimentCVar, 1)) {
