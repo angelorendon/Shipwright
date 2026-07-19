@@ -12,7 +12,8 @@ constexpr const char* kEnableTestingDefaultsCVar = "gProjectZelda64.EnableTestin
 void ApplyProjectZelda64TestingDefaults() {
     // Graphics defaults for repeated ProjectZelda64 smoke tests.
     CVarSetInteger("gSettings.MSAAValue", 8);
-    CVarSetInteger("gInterpolationFPS", 360);
+    CVarSetInteger("gInterpolationFPS", 300);
+    CVarSetInteger("gSdlWindowedFullscreen", 1);
 
     // Speed Modifier defaults for quickly reaching the Happy Mask Shop during OoT portal tests.
     // Mode 3 is toggle mode in the Shipwright/2S2H speed modifier convention.
@@ -30,6 +31,11 @@ void ApplyProjectZelda64TestingDefaults() {
     // Skips and speed-ups.
     CVarSetInteger("gEnhancements.TimeSavers.SkipCutscene.Intro", 1);
     CVarSetInteger("gEnhancements.TimeSavers.SkipCutscene.Entrances", 1);
+    CVarSetInteger("gEnhancements.TimeSavers.SkipCutscene.Story", 1);
+    CVarSetInteger("gEnhancements.TimeSavers.SkipCutscene.LearnSong", 1);
+    CVarSetInteger("gEnhancements.TimeSavers.SkipCutscene.BossIntro", 1);
+    CVarSetInteger("gEnhancements.TimeSavers.SkipCutscene.QuickBossDeaths", 1);
+    CVarSetInteger("gEnhancements.TimeSavers.SkipCutscene.OnePoint", 1);
     CVarSetInteger("gEnhancements.TimeSavers.SkipOwlInteractions", 1);
     CVarSetInteger("gEnhancements.TextSpeed", 5);
     CVarSetInteger("gEnhancements.SlowTextSpeed", 5);
