@@ -45,6 +45,12 @@ void DrawMmGoronMask(PlayState* play, GetItemEntry*) {
     Gfx* displayList = ResourceMgr_LoadGfxByName(kMmGoronMaskDisplayList);
     if (displayList != nullptr) {
         Gfx_DrawDListOpa(play, displayList);
+    } else {
+        static bool loggedMissingModel = false;
+        if (!loggedMissingModel) {
+            SPDLOG_ERROR("ProjectZelda64: MM Goron Mask display list was not loaded from the mod archive");
+            loggedMissingModel = true;
+        }
     }
 }
 
@@ -277,6 +283,11 @@ extern "C" uint16_t ProjectZelda64_ConsumeMmGoronMaskFanfare(void) {
         return 0;
     }
     gUseMmGoronMaskFanfare = false;
+    if (gProjectZelda64MmGetMaskSequenceId == 0) {
+        SPDLOG_ERROR("ProjectZelda64: MM Get Mask sequence was not registered from the mod archive");
+    } else {
+        SPDLOG_INFO("ProjectZelda64: playing MM Get Mask sequence {}", gProjectZelda64MmGetMaskSequenceId);
+    }
     return gProjectZelda64MmGetMaskSequenceId;
 }
 
