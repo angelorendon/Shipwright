@@ -44,6 +44,167 @@ bool gPendingGoronMaskReward = false;
 bool gUseMmGoronMaskFanfare = false;
 uint8_t gPreviousOotChildTradeItem = ITEM_NONE;
 
+constexpr const char* kMmGreenChuchuRoot =
+    "__OTR__objects/projectzelda64/mm_green_chuchu/";
+
+typedef struct {
+    Actor actor;
+    ColliderCylinder collider;
+    int16_t jumpTimer;
+    int16_t blinkTimer;
+    int16_t eyeIndex;
+} ProjectZelda64GreenChuchu;
+
+static ColliderCylinderInit sGreenChuchuCylinderInit = {
+    {
+        COLTYPE_HIT8,
+        AT_ON | AT_TYPE_ENEMY,
+        AC_ON | AC_TYPE_PLAYER,
+        OC1_ON | OC1_TYPE_ALL,
+        OC2_TYPE_1,
+        COLSHAPE_CYLINDER,
+    },
+    {
+        ELEMTYPE_UNK0,
+        { 0xFFCFFFFF, 0x03, 0x08 },
+        { 0xFFCFFFFF, 0x01, 0x00 },
+        TOUCH_ON | TOUCH_SFX_NONE,
+        BUMP_ON,
+        OCELEM_ON,
+    },
+    { 22, 35, 0, { 0, 0, 0 } },
+};
+
+static DamageTable sGreenChuchuDamageTable = {
+    DMG_ENTRY(0, 1), DMG_ENTRY(1, 0), DMG_ENTRY(1, 0), DMG_ENTRY(1, 0),
+    DMG_ENTRY(1, 0), DMG_ENTRY(1, 0), DMG_ENTRY(2, 0), DMG_ENTRY(1, 0),
+    DMG_ENTRY(1, 0), DMG_ENTRY(2, 0), DMG_ENTRY(4, 0), DMG_ENTRY(2, 0),
+    DMG_ENTRY(2, 0), DMG_ENTRY(2, 0), DMG_ENTRY(2, 0), DMG_ENTRY(2, 0),
+    DMG_ENTRY(2, 0), DMG_ENTRY(2, 0), DMG_ENTRY(2, 0), DMG_ENTRY(0, 1),
+    DMG_ENTRY(0, 0), DMG_ENTRY(0, 0), DMG_ENTRY(1, 0), DMG_ENTRY(1, 0),
+    DMG_ENTRY(1, 0), DMG_ENTRY(1, 0), DMG_ENTRY(4, 0), DMG_ENTRY(2, 0),
+    DMG_ENTRY(0, 0), DMG_ENTRY(0, 0), DMG_ENTRY(0, 0), DMG_ENTRY(0, 0),
+};
+
+static CollisionCheckInfoInit2 sGreenChuchuColChkInfo = { 1, 22, 35, 0, 30 };
+
+void ProjectZelda64GreenChuchu_Destroy(Actor* actor, PlayState* play) {
+    auto* chuchu = reinterpret_cast<ProjectZelda64GreenChuchu*>(actor);
+    Collider_DestroyCylinder(play, &chuchu->collider);
+}
+
+void ProjectZelda64GreenChuchu_Update(Actor* actor, PlayState* play) {
+    auto* chuchu = reinterpret_cast<ProjectZelda64GreenChuchu*>(actor);
+
+    if (chuchu->collider.base.acFlags & AC_HIT) {
+        chuchu->collider.base.acFlags &= ~AC_HIT;
+        Actor_SetDropFlag(actor, &chuchu->collider.info, 1);
+        if (actor->colChkInfo.damageEffect == 1) {
+            Actor_SetColorFilter(actor, 0, 0xFF, 0, 30);
+            chuchu->jumpTimer = 30;
+            actor->speedXZ = 0.0f;
+        } else if (Actor_ApplyDamage(actor) == 0) {
+            Enemy_StartFinishingBlow(play, actor);
+            Item_DropCollectibleRandom(play, actor, &actor->world.pos, 0x50);
+            Actor_Kill(actor);
+            return;
+        } else {
+            Actor_SetColorFilter(actor, 0x4000, 0xFF, 0, 8);
+        }
+    }
+
+    if (chuchu->jumpTimer > 0) {
+        chuchu->jumpTimer--;
+    }
+    if ((actor->bgCheckFlags & 1) && actor->velocity.y <= 0.0f) {
+        actor->speedXZ = 0.0f;
+        if (chuchu->jumpTimer == 0 && actor->xzDistToPlayer < 450.0f) {
+            actor->world.rot.y = actor->yawTowardsPlayer;
+            actor->shape.rot.y = actor->world.rot.y;
+            actor->speedXZ = 2.5f;
+            actor->velocity.y = 8.0f;
+            chuchu->jumpTimer = 35;
+        }
+    }
+
+    Actor_MoveXZGravity(actor);
+    Actor_UpdateBgCheckInfo(play, actor, 10.0f, 22.0f, 35.0f, 7);
+    Collider_UpdateCylinder(actor, &chuchu->collider);
+    CollisionCheck_SetAT(play, &play->colChkCtx, &chuchu->collider.base);
+    CollisionCheck_SetAC(play, &play->colChkCtx, &chuchu->collider.base);
+    CollisionCheck_SetOC(play, &play->colChkCtx, &chuchu->collider.base);
+    Actor_SetFocus(actor, 25.0f);
+
+    chuchu->blinkTimer++;
+    if ((chuchu->blinkTimer % 80) < 4) {
+        chuchu->eyeIndex = ((chuchu->blinkTimer % 80) + 1) / 2;
+    } else {
+        chuchu->eyeIndex = 0;
+    }
+}
+
+void ProjectZelda64GreenChuchu_Draw(Actor* actor, PlayState* play) {
+    static Gfx* body = nullptr;
+    static Gfx* eyes = nullptr;
+    static char* eyeTextures[3] = {};
+    static const char* eyeNames[3] = {
+        "gChuchuEyeOpenTex", "gChuchuEyeHalfTex", "gChuchuEyeClosedTex"
+    };
+    if (body == nullptr) {
+        body = ResourceMgr_LoadGfxByName(
+            "__OTR__objects/projectzelda64/mm_green_chuchu/gChuchuBodyDL");
+        eyes = ResourceMgr_LoadGfxByName(
+            "__OTR__objects/projectzelda64/mm_green_chuchu/gChuchuEyesDL");
+        for (int i = 0; i < 3; i++) {
+            const std::string path = std::string(kMmGreenChuchuRoot) + eyeNames[i];
+            eyeTextures[i] = ResourceMgr_LoadTexOrDListByName(path.c_str());
+        }
+    }
+    if (body == nullptr || eyes == nullptr || eyeTextures[0] == nullptr) {
+        return;
+    }
+
+    auto* chuchu = reinterpret_cast<ProjectZelda64GreenChuchu*>(actor);
+    GraphicsContext* __gfxCtx = play->state.gfxCtx;
+    const float pulse = sinf(static_cast<float>(play->state.frames) * 0.22f) * 0.08f;
+    Matrix_Scale(1.0f - pulse, 1.0f + pulse, 1.0f - pulse, MTXMODE_APPLY);
+    Gfx_SetupDL_25Xlu(play->state.gfxCtx);
+    gDPSetPrimColor(POLY_XLU_DISP++, 0, 100, 255, 255, 0, 255);
+    gDPSetEnvColor(POLY_XLU_DISP++, 50, 255, 0, 255);
+    gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, (char*)__FILE__, __LINE__),
+              G_MTX_MODELVIEW | G_MTX_LOAD);
+    gSPDisplayList(POLY_XLU_DISP++, body);
+    gSPSegment(POLY_XLU_DISP++, 9, reinterpret_cast<uintptr_t>(eyeTextures[chuchu->eyeIndex]));
+    gSPDisplayList(POLY_XLU_DISP++, eyes);
+}
+
+void ReplaceKokiriDekuBabaWithGreenChuchu(void* actorRef) {
+    Actor* actor = reinterpret_cast<Actor*>(actorRef);
+    if (gPlayState == nullptr || gPlayState->sceneNum != SCENE_KOKIRI_FOREST) {
+        return;
+    }
+
+    // Actor initialization has completed when this hook runs. Tear down the
+    // original Baba collider/skeleton registrations before reusing its allocation.
+    if (actor->destroy != nullptr) {
+        actor->destroy(actor, gPlayState);
+    }
+    auto* chuchu = reinterpret_cast<ProjectZelda64GreenChuchu*>(actor);
+    Collider_InitCylinder(gPlayState, &chuchu->collider);
+    Collider_SetCylinder(gPlayState, &chuchu->collider, actor, &sGreenChuchuCylinderInit);
+    CollisionCheck_SetInfo2(&actor->colChkInfo, &sGreenChuchuDamageTable, &sGreenChuchuColChkInfo);
+    ActorShape_Init(&actor->shape, 0.0f, ActorShadow_DrawCircle, 38.0f);
+    Actor_SetScale(actor, 0.01f);
+    actor->gravity = -2.0f;
+    actor->flags = ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_HOSTILE;
+    actor->destroy = ProjectZelda64GreenChuchu_Destroy;
+    actor->update = ProjectZelda64GreenChuchu_Update;
+    actor->draw = ProjectZelda64GreenChuchu_Draw;
+    chuchu->jumpTimer = 20;
+    chuchu->blinkTimer = 0;
+    chuchu->eyeIndex = 0;
+}
+
 void DrawMmGoronMask(PlayState* play, GetItemEntry*) {
     static Gfx* displayList = nullptr;
     static Gfx* emptyDisplayList = nullptr;
@@ -280,6 +441,7 @@ void RegisterProjectZelda64PortalBridge() {
               TryGivePendingGoronMaskReward);
     COND_HOOK(OnItemReceive, CVarGetInteger(kEnableGoronMaskOcarinaExperimentCVar, 1),
               OnProjectZelda64ItemReceive);
+    COND_ID_HOOK(OnActorInit, ACTOR_EN_DEKUBABA, true, ReplaceKokiriDekuBabaWithGreenChuchu);
 
     // No automatic portal on shop entry anymore. The salesman dialog owns the portal trigger.
     COND_ID_HOOK(OnOpenText, kProjectZelda64DevicePromptTextId, CVarGetInteger(kEnableOoTPortalsCVar, 1),
