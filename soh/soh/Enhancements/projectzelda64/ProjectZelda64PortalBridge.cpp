@@ -46,6 +46,15 @@ uint8_t gPreviousOotChildTradeItem = ITEM_NONE;
 
 constexpr const char* kMmGreenChuchuRoot =
     "__OTR__objects/projectzelda64/mm_green_chuchu/";
+constexpr int16_t kProjectZelda64GreenChuchuParams = 0x7A64;
+constexpr Vec3s kKokiriForestGreenChuchuPositions[] = {
+    { 2109, -1, -317 },
+    { 2237, -1, -291 },
+    { 2293, -1, -496 },
+    { 3126, -180, -1555 },
+    { 4129, -170, -548 },
+};
+bool gKokiriForestGreenChuchusSpawned = false;
 
 typedef struct {
     Actor actor;
@@ -192,6 +201,10 @@ void ReplaceKokiriDekuBabaWithGreenChuchu(void* actorRef) {
     if (gPlayState == nullptr || gPlayState->sceneNum != SCENE_KOKIRI_FOREST) {
         return;
     }
+    if (actor->params != kProjectZelda64GreenChuchuParams) {
+        Actor_Kill(actor);
+        return;
+    }
 
     // Actor initialization has completed when this hook runs. Tear down the
     // original Baba collider/skeleton registrations before reusing its allocation.
@@ -207,6 +220,10 @@ void ReplaceKokiriDekuBabaWithGreenChuchu(void* actorRef) {
     actor->scale.y = 0.011f;
     actor->scale.z = 0.008f;
     actor->gravity = -2.0f;
+    actor->home.rot.x = actor->world.rot.x = actor->shape.rot.x = 0;
+    actor->home.rot.z = actor->world.rot.z = actor->shape.rot.z = 0;
+    actor->world.pos.y = actor->home.pos.y;
+    actor->room = -1;
     actor->flags = ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_HOSTILE |
                    ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED;
     actor->destroy = ProjectZelda64GreenChuchu_Destroy;
@@ -217,6 +234,23 @@ void ReplaceKokiriDekuBabaWithGreenChuchu(void* actorRef) {
     chuchu->eyeIndex = 0;
     SPDLOG_INFO("ProjectZelda64: replaced Kokiri Forest Baba actor {} with MM Green ChuChu",
                 actor->id);
+}
+
+void ResetKokiriForestGreenChuchuSpawns(int16_t) {
+    gKokiriForestGreenChuchusSpawned = false;
+}
+
+void SpawnKokiriForestGreenChuchus() {
+    if (gPlayState == nullptr || gPlayState->sceneNum != SCENE_KOKIRI_FOREST ||
+        gKokiriForestGreenChuchusSpawned) {
+        return;
+    }
+    gKokiriForestGreenChuchusSpawned = true;
+    for (const Vec3s& position : kKokiriForestGreenChuchuPositions) {
+        Actor_Spawn(&gPlayState->actorCtx, gPlayState, ACTOR_EN_KAREBABA,
+                    position.x, position.y, position.z, 0, 0, 0,
+                    kProjectZelda64GreenChuchuParams);
+    }
 }
 
 void DrawMmGoronMask(PlayState* play, GetItemEntry*) {
@@ -455,8 +489,9 @@ void RegisterProjectZelda64PortalBridge() {
               TryGivePendingGoronMaskReward);
     COND_HOOK(OnItemReceive, CVarGetInteger(kEnableGoronMaskOcarinaExperimentCVar, 1),
               OnProjectZelda64ItemReceive);
-    COND_ID_HOOK(OnActorInit, ACTOR_EN_DEKUBABA, true, ReplaceKokiriDekuBabaWithGreenChuchu);
     COND_ID_HOOK(OnActorInit, ACTOR_EN_KAREBABA, true, ReplaceKokiriDekuBabaWithGreenChuchu);
+    COND_HOOK(OnSceneInit, true, ResetKokiriForestGreenChuchuSpawns);
+    COND_HOOK(OnSceneSpawnActors, true, SpawnKokiriForestGreenChuchus);
 
     // No automatic portal on shop entry anymore. The salesman dialog owns the portal trigger.
     COND_ID_HOOK(OnOpenText, kProjectZelda64DevicePromptTextId, CVarGetInteger(kEnableOoTPortalsCVar, 1),
