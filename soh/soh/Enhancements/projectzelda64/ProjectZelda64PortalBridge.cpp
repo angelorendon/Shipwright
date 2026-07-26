@@ -145,23 +145,46 @@ void ProjectZelda64GreenChuchu_Update(Actor* actor, PlayState* play) {
 
 void ProjectZelda64GreenChuchu_Draw(Actor* actor, PlayState* play) {
     static Gfx* body = nullptr;
+    static Gfx* eyes = nullptr;
+    static char* eyeTextures[3] = {};
+    static const char* eyeNames[3] = {
+        "gChuchuEyeOpenTex", "gChuchuEyeHalfTex", "gChuchuEyeClosedTex"
+    };
     if (body == nullptr) {
         body = ResourceMgr_LoadGfxByName(
             "__OTR__objects/projectzelda64/mm_green_chuchu/gChuchuBodyDL");
+        eyes = ResourceMgr_LoadGfxByName(
+            "__OTR__objects/projectzelda64/mm_green_chuchu/gChuchuEyesDL");
+        for (int i = 0; i < 3; i++) {
+            const std::string path = std::string(kMmGreenChuchuRoot) + eyeNames[i];
+            eyeTextures[i] = ResourceMgr_LoadTexOrDListByName(path.c_str());
+        }
     }
-    if (body == nullptr) {
+    if (body == nullptr || eyes == nullptr || eyeTextures[0] == nullptr) {
         return;
     }
 
+    auto* chuchu = reinterpret_cast<ProjectZelda64GreenChuchu*>(actor);
     GraphicsContext* __gfxCtx = play->state.gfxCtx;
     const float pulse = sinf(static_cast<float>(play->state.frames) * 0.22f) * 0.08f;
     Matrix_Scale(1.0f - pulse, 1.0f + pulse, 1.0f - pulse, MTXMODE_APPLY);
     Gfx_SetupDL_25Xlu(play->state.gfxCtx);
     gDPSetPrimColor(POLY_XLU_DISP++, 0, 100, 255, 255, 0, 255);
     gDPSetEnvColor(POLY_XLU_DISP++, 50, 255, 0, 255);
+    gSPSegment(POLY_XLU_DISP++, 10,
+               reinterpret_cast<uintptr_t>(Gfx_TwoTexScrollEx(
+                   play->state.gfxCtx, 0, 0, 0, 64, 64, 1, 0,
+                   -static_cast<int32_t>(play->state.frames), 32, 32, 0, 0, 0, -1)));
     gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, (char*)__FILE__, __LINE__),
               G_MTX_MODELVIEW | G_MTX_LOAD);
     gSPDisplayList(POLY_XLU_DISP++, body);
+
+    Gfx_SetupDL_25Opa(play->state.gfxCtx);
+    gSPSegment(POLY_OPA_DISP++, 9, reinterpret_cast<uintptr_t>(eyeTextures[chuchu->eyeIndex]));
+    gDPSetEnvColor(POLY_OPA_DISP++, 0, 30, 70, 255);
+    gSPMatrix(POLY_OPA_DISP++, Matrix_NewMtx(play->state.gfxCtx, (char*)__FILE__, __LINE__),
+              G_MTX_MODELVIEW | G_MTX_LOAD);
+    gSPDisplayList(POLY_OPA_DISP++, eyes);
 }
 
 void ReplaceKokiriDekuBabaWithGreenChuchu(void* actorRef) {
@@ -180,9 +203,12 @@ void ReplaceKokiriDekuBabaWithGreenChuchu(void* actorRef) {
     Collider_SetCylinder(gPlayState, &chuchu->collider, actor, &sGreenChuchuCylinderInit);
     CollisionCheck_SetInfo2(&actor->colChkInfo, &sGreenChuchuDamageTable, &sGreenChuchuColChkInfo);
     ActorShape_Init(&actor->shape, 0.0f, ActorShadow_DrawCircle, 38.0f);
-    Actor_SetScale(actor, 0.01f);
+    actor->scale.x = 0.008f;
+    actor->scale.y = 0.011f;
+    actor->scale.z = 0.008f;
     actor->gravity = -2.0f;
-    actor->flags = ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_HOSTILE;
+    actor->flags = ACTOR_FLAG_ATTENTION_ENABLED | ACTOR_FLAG_HOSTILE |
+                   ACTOR_FLAG_UPDATE_CULLING_DISABLED | ACTOR_FLAG_DRAW_CULLING_DISABLED;
     actor->destroy = ProjectZelda64GreenChuchu_Destroy;
     actor->update = ProjectZelda64GreenChuchu_Update;
     actor->draw = ProjectZelda64GreenChuchu_Draw;
