@@ -145,26 +145,14 @@ void ProjectZelda64GreenChuchu_Update(Actor* actor, PlayState* play) {
 
 void ProjectZelda64GreenChuchu_Draw(Actor* actor, PlayState* play) {
     static Gfx* body = nullptr;
-    static Gfx* eyes = nullptr;
-    static char* eyeTextures[3] = {};
-    static const char* eyeNames[3] = {
-        "gChuchuEyeOpenTex", "gChuchuEyeHalfTex", "gChuchuEyeClosedTex"
-    };
     if (body == nullptr) {
         body = ResourceMgr_LoadGfxByName(
             "__OTR__objects/projectzelda64/mm_green_chuchu/gChuchuBodyDL");
-        eyes = ResourceMgr_LoadGfxByName(
-            "__OTR__objects/projectzelda64/mm_green_chuchu/gChuchuEyesDL");
-        for (int i = 0; i < 3; i++) {
-            const std::string path = std::string(kMmGreenChuchuRoot) + eyeNames[i];
-            eyeTextures[i] = ResourceMgr_LoadTexOrDListByName(path.c_str());
-        }
     }
-    if (body == nullptr || eyes == nullptr || eyeTextures[0] == nullptr) {
+    if (body == nullptr) {
         return;
     }
 
-    auto* chuchu = reinterpret_cast<ProjectZelda64GreenChuchu*>(actor);
     GraphicsContext* __gfxCtx = play->state.gfxCtx;
     const float pulse = sinf(static_cast<float>(play->state.frames) * 0.22f) * 0.08f;
     Matrix_Scale(1.0f - pulse, 1.0f + pulse, 1.0f - pulse, MTXMODE_APPLY);
@@ -174,8 +162,6 @@ void ProjectZelda64GreenChuchu_Draw(Actor* actor, PlayState* play) {
     gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(play->state.gfxCtx, (char*)__FILE__, __LINE__),
               G_MTX_MODELVIEW | G_MTX_LOAD);
     gSPDisplayList(POLY_XLU_DISP++, body);
-    gSPSegment(POLY_XLU_DISP++, 9, reinterpret_cast<uintptr_t>(eyeTextures[chuchu->eyeIndex]));
-    gSPDisplayList(POLY_XLU_DISP++, eyes);
 }
 
 void ReplaceKokiriDekuBabaWithGreenChuchu(void* actorRef) {
