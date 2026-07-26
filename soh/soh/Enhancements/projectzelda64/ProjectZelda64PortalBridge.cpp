@@ -203,6 +203,8 @@ void ReplaceKokiriDekuBabaWithGreenChuchu(void* actorRef) {
     chuchu->jumpTimer = 20;
     chuchu->blinkTimer = 0;
     chuchu->eyeIndex = 0;
+    SPDLOG_INFO("ProjectZelda64: replaced Kokiri Forest Baba actor {} with MM Green ChuChu",
+                actor->id);
 }
 
 void DrawMmGoronMask(PlayState* play, GetItemEntry*) {
@@ -442,6 +444,7 @@ void RegisterProjectZelda64PortalBridge() {
     COND_HOOK(OnItemReceive, CVarGetInteger(kEnableGoronMaskOcarinaExperimentCVar, 1),
               OnProjectZelda64ItemReceive);
     COND_ID_HOOK(OnActorInit, ACTOR_EN_DEKUBABA, true, ReplaceKokiriDekuBabaWithGreenChuchu);
+    COND_ID_HOOK(OnActorInit, ACTOR_EN_KAREBABA, true, ReplaceKokiriDekuBabaWithGreenChuchu);
 
     // No automatic portal on shop entry anymore. The salesman dialog owns the portal trigger.
     COND_ID_HOOK(OnOpenText, kProjectZelda64DevicePromptTextId, CVarGetInteger(kEnableOoTPortalsCVar, 1),
